@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "node": {
+        "id": 99002,
+        "title": "Special Thing",
+        "media_type": "tv_special",
+        "status": "not_yet_aired",
+        "num_episodes": 1,
+        "start_date": "2027-01-15",
+        "end_date": "not-a-date"
+      },
+      "list_status": {"status": "plan_to_watch", "num_episodes_watched": 0, "is_rewatching": false, "updated_at": "2026-10-01T00:00:00Z"}
+    }
+  ],
+  "paging": {}
+}
