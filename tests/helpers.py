@@ -23,8 +23,10 @@ class FakeHttp:
         self.replies = list(replies)
         self.requests = []
 
-    def request(self, method, url, *, params=None, headers=None, form=None):
-        self.requests.append({"method": method, "url": url, "params": params, "headers": headers or {}, "form": form})
+    def request(self, method, url, *, params=None, headers=None, form=None, json_body=None):
+        self.requests.append(
+            {"method": method, "url": url, "params": params, "headers": headers or {}, "form": form, "json": json_body}
+        )
         if not self.replies:
             raise AssertionError(f"unexpected request: {method} {url}")
         reply = self.replies.pop(0)

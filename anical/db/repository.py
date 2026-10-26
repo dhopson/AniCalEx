@@ -260,6 +260,12 @@ class LibraryRepository:
             ]
         )
 
+    def watch_state(self, episode_id: int) -> WatchState:
+        row = self._conn.execute("SELECT state FROM episode_watch_state WHERE episode_id = ?", (episode_id,)).fetchone()
+        if row is None:
+            raise KeyError(episode_id)
+        return WatchState(row[0])
+
     def add_episode(self, anime_id: int, kind: EpisodeKind = EpisodeKind.REGULAR) -> int:
         """Append the next episode number of `kind`, for shows whose length is unknown."""
         with transaction(self._conn):

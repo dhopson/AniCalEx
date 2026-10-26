@@ -11,10 +11,15 @@ if not Gtk.init_check():
     pytest.skip("no display available", allow_module_level=True)
 Adw.init()
 
-from anical.db.settings import MAL_CLIENT_ID, MAL_MODE, MAL_USERNAME, SettingsRepository  # noqa: E402
+from anical.db.schedule import ScheduleRepository  # noqa: E402
+from anical.db.settings import DISPLAY_ENGLISH_TITLES, DISPLAY_TIMEZONE, MAL_CLIENT_ID, MAL_MODE, MAL_USERNAME, SettingsRepository  # noqa: E402
 from anical.domain.models import AiringStatus, AnimeDraft, WatchState  # noqa: E402
 from anical.net.http import NetworkError, Response  # noqa: E402
+from anical.providers.anilist import AniListClient  # noqa: E402
 from anical.sync.mal_sync import MalSyncService  # noqa: E402
+from anical.sync.schedule_sync import fetch_schedules  # noqa: E402
+from anical.ui.air_dates import AirDatesDialog  # noqa: E402
+from anical.ui.display import DisplaySettings  # noqa: E402
 from anical.ui.editor import AnimeEditorDialog  # noqa: E402
 from anical.ui.preferences import PreferencesDialog  # noqa: E402
 from anical.ui.show_page import ShowPage  # noqa: E402
@@ -49,12 +54,23 @@ def settings(conn, clock):
 @pytest.fixture
 def controller(repo, settings, http, clock, tmp_path):
     service = MalSyncService(http, MemoryTokenStore(), clock=clock)
-    return SyncController(repo, settings, service, http, tmp_path / "covers", clock=clock)
+    def fetch_without_pacing(http, targets, now):
+        return fetch_schedules(http, targets, now, client=AniListClient(http, sleep=lambda s: None))
+
+    return SyncController(
+        repo, settings, service, http, tmp_path / "covers", clock=clock, schedule_fetcher=fetch_without_pacing
+    )
 
 
 @pytest.fixture
-def window(repo, controller):
-    win = MainWindow(application=None, repository=repo, sync_controller=controller)
+def display(settings):
+    settings.set(DISPLAY_TIMEZONE, "America/New_York")
+    return DisplaySettings(settings)
+
+
+@pytest.fixture
+def window(repo, controller, display):
+    win = MainWindow(application=None, repository=repo, sync_controller=controller, display=display)
     yield win
     win.destroy()
     drain()
@@ -70,6 +86,10 @@ def visible_ids(page):
     return ids
 
 
+def anilist_page(key, items):
+    return json_response({"data": {"Page": {"pageInfo": {"hasNextPage": False}, key: items}}})
+
+
 def use_public_list(settings):
     settings.set(MAL_CLIENT_ID, "cid")
     settings.set(MAL_MODE, "username")
@@ -77,14 +97,14 @@ def use_public_list(settings):
 
 
 def test_empty_library_shows_empty_state(window):
-    assert window.library_page._stack.get_visible_child_name() == "empty"
+    assert window.library_view._stack.get_visible_child_name() == "empty"
 
 
 def test_library_lists_and_filters(window, repo):
     repo.create_anime(AnimeDraft(title="Frieren", airing_status=AiringStatus.COMPLETED, total_episodes=2))
     repo.create_anime(AnimeDraft(title="Ongoing Show", airing_status=AiringStatus.AIRING))
-    window.library_page.reload()
-    page = window.library_page
+    window.library_view.reload()
+    page = window.library_view
     assert page._stack.get_visible_child_name() == "list"
     assert not page._list_filter.get_parent().get_visible()  # no MAL data, no list filter
     assert visible_ids(page) == [1, 2]
@@ -125,9 +145,14 @@ def test_editor_creates_entry_and_reports_errors(repo):
 
 def test_sync_end_to_end(window, controller, settings, http, repo, clock):
     use_public_list(settings)
+    now = clock()
     http.replies += [
         json_response(fixture_json("mal_animelist_page1.json")),
         json_response(fixture_json("mal_animelist_page2.json")),
+        # AniList: link the two still-airing shows, then their schedule window.
+        anilist_page("media", [{"id": 5001, "idMal": 99001, "status": "RELEASING", "episodes": None},
+                               {"id": 5002, "idMal": 99002, "status": "NOT_YET_RELEASED", "episodes": 1}]),
+        anilist_page("airingSchedules", [{"mediaId": 5001, "episode": 4, "airingAt": now + 3600}]),
         Response(200, b"\xff\xd8jpeg", {"Content-Type": "image/jpeg"}),
         NetworkError("offline"),  # second cover: stop quietly
     ]
@@ -140,7 +165,9 @@ def test_sync_end_to_end(window, controller, settings, http, repo, clock):
     assert controller.error is None
     assert len(repo.list_summaries()) == 3
     assert sum(1 for s in repo.list_summaries() if s.cover_path) == 1
-    assert window.library_page._list_filter.get_parent().get_visible()
+    assert window.library_view._list_filter.get_parent().get_visible()
+    (entry,) = ScheduleRepository(repo.connection, clock).calendar_entries(now, now + 86400)
+    assert (entry.title, entry.number) == ("Ongoing Show", 4)
 
     # Restarting inside the 24h window does not refresh again (no requests queued).
     clock.advance(3600)
@@ -154,17 +181,149 @@ def test_offline_sync_keeps_data_and_shows_banner(window, controller, settings, 
     http.replies.append(NetworkError("offline"))
     controller.sync()
     wait_until(lambda: not controller.busy)
-    assert "Couldn’t reach MyAnimeList" in controller.error
-    assert window.library_page._banner.get_revealed()
+    assert controller.error == "MyAnimeList: couldn’t connect. Showing saved data."
+    assert window._banner.get_revealed()
     assert settings.last_refresh_run() is None  # failed runs don't count
     assert [s.title for s in repo.list_summaries()] == ["Kept"]
 
 
 @pytest.mark.parametrize("mode", [None, "username", "account"])
-def test_preferences_build_in_every_mode(controller, settings, mode):
+def test_preferences_build_in_every_mode(controller, settings, display, mode):
     settings.set(MAL_CLIENT_ID, "cid")
     settings.set(MAL_MODE, mode)
     settings.set(MAL_USERNAME, "someone" if mode else None)
-    dialog = PreferencesDialog(controller)
+    dialog = PreferencesDialog(controller, display)
     controller.emit("changed")  # rebuild path
     dialog.force_close()
+
+
+def schedule_show(repo, window, *offsets_hours):
+    """An airing show with one user-set airing per offset (hours from now)."""
+    import time
+
+    anime_id = repo.create_anime(AnimeDraft(title="Weekly Show", airing_status=AiringStatus.AIRING))
+    now = int(time.time())
+    window.schedule.set_user_airings(anime_id, [(i + 1, now + h * 3600) for i, h in enumerate(offsets_hours)])
+    window.library_changed()
+    return anime_id
+
+
+def widget_texts(widget):
+    """All label texts and row titles under `widget`, for asserting what is shown."""
+    texts = []
+    stack = [widget]
+    while stack:
+        current = stack.pop()
+        if isinstance(current, Gtk.Label):
+            texts.append(current.get_label())
+        if isinstance(current, Adw.PreferencesRow):
+            texts.append(current.get_title())
+        child = current.get_first_child()
+        while child is not None:
+            stack.append(child)
+            child = child.get_next_sibling()
+    return texts
+
+
+@pytest.mark.parametrize("compact", [False, True])
+@pytest.mark.parametrize("mode", ["day", "week", "month", "unwatched"])
+def test_calendar_modes_render(window, repo, mode, compact):
+    schedule_show(repo, window, -30, -1, 2)
+    calendar = window.calendar_view
+    calendar.set_property("compact", compact)
+    calendar._modes.set_active_name(mode)
+    texts = widget_texts(calendar)
+    if mode == "unwatched":
+        assert "Weekly Show" in texts and "Aired, Not Watched" in texts
+        assert "Episode 1" in texts and "Episode 2" in texts
+    elif mode != "month":
+        assert any("Weekly Show" in t for t in texts if t)
+
+
+def test_calendar_navigation_and_today(window):
+    calendar = window.calendar_view
+    first = calendar._title.get_label()
+    calendar._navigate(1)
+    assert calendar._title.get_label() != first
+    calendar._navigate(0)
+    assert calendar._title.get_label() == first
+
+
+def test_marking_watched_from_calendar_updates_everything(window, repo):
+    anime_id = schedule_show(repo, window, -3)
+    (episode,) = repo.episodes(anime_id).episodes
+    window.calendar_view._toggle_watched(episode.id)
+    drain()
+    assert repo.watch_state(episode.id) is WatchState.WATCHED
+    window.calendar_view._modes.set_active_name("unwatched")
+    assert "All Caught Up" in widget_texts(window.calendar_view)
+
+
+def test_undated_airing_shows_are_listed(window, repo):
+    repo.create_anime(AnimeDraft(title="No Dates Yet", airing_status=AiringStatus.AIRING))
+    window.library_changed()
+    texts = widget_texts(window.calendar_view)
+    assert "Airing, Date Unknown" in texts and "No Dates Yet" in texts
+
+
+def test_air_dates_dialog_validates_and_saves(window, repo):
+    anime_id = repo.create_anime(AnimeDraft(title="Manual", airing_status=AiringStatus.AIRING, total_episodes=4))
+    saved = []
+    dialog = AirDatesDialog(window.schedule, window.display, repo.get_anime(anime_id), 1, lambda: saved.append(1))
+    dialog._on_save()  # no time entered
+    assert not saved and dialog._time.has_css_class("error")
+    dialog._date.set_text("2026-11-01")
+    dialog._time.set_text("20:00")
+    dialog._repeat.set_active(True)
+    dialog._on_save()
+    assert saved
+    airings = window.schedule.episode_airings(anime_id)
+    assert len(airings) == 4 and window.schedule.has_user_airings(anime_id)
+
+    page = ShowPage(window, anime_id)
+    assert page._actions.lookup_action("clear-air-dates").get_enabled()
+    page._on_clear_air_dates()
+    assert not window.schedule.has_user_airings(anime_id)
+
+
+def test_unwatched_mark_all_and_markup_safe_titles(window, repo):
+    import time
+
+    anime_id = repo.create_anime(AnimeDraft(title="Tom & Jerry <Special>", airing_status=AiringStatus.AIRING))
+    now = int(time.time())
+    window.schedule.set_user_airings(anime_id, [(1, now - 7200), (2, now - 3600)])
+    window.library_changed()
+    window.calendar_view._modes.set_active_name("unwatched")
+    assert "Tom &amp; Jerry &lt;Special&gt;" in widget_texts(window.calendar_view)
+    window.calendar_view._mark_watched([e.id for e in repo.episodes(anime_id).episodes])
+    drain()
+    assert repo.episodes(anime_id).watched_count == 2
+
+
+def test_show_page_count_does_not_invent_a_total(window, repo):
+    unknown = repo.create_anime(AnimeDraft(title="Open-ended"))
+    for _ in range(3):
+        repo.add_episode(unknown)
+    assert ShowPage(window, unknown)._count_label.get_label() == "0 watched"
+    known = repo.create_anime(AnimeDraft(title="Finite", total_episodes=12))
+    assert ShowPage(window, known)._count_label.get_label() == "0 of 12 watched"
+
+
+def test_calendar_can_use_english_titles(window, repo, display):
+    import time
+
+    anime_id = repo.create_anime(
+        AnimeDraft(title="Kusuriya no Hitorigoto", title_en="The Apothecary Diaries", airing_status=AiringStatus.AIRING)
+    )
+    plain = repo.create_anime(AnimeDraft(title="Only Romaji", airing_status=AiringStatus.AIRING))
+    now = int(time.time())
+    for show in (anime_id, plain):
+        window.schedule.set_user_airings(show, [(1, now + 3600)])
+    window.calendar_view._modes.set_active_name("day")
+    window.library_changed()
+    assert "Kusuriya no Hitorigoto" in widget_texts(window.calendar_view)
+
+    display.set(DISPLAY_ENGLISH_TITLES, True)  # re-renders via the display's changed signal
+    texts = widget_texts(window.calendar_view)
+    assert "The Apothecary Diaries" in texts and "Kusuriya no Hitorigoto" not in texts
+    assert "Only Romaji" in texts  # falls back when there's no English title

@@ -5,7 +5,9 @@ import datetime
 from gi.repository import Adw, Gtk
 
 from anical.auth.mal_oauth import REDIRECT_URI, OAuthError
+from anical.db.settings import AVAILABILITY_LAG_HOURS, DISPLAY_ENGLISH_TITLES, DISPLAY_TIMEZONE, DISPLAY_WEEK_START
 from anical.sync.mal_sync import ACCOUNT, USERNAME
+from anical.ui.display import DisplaySettings, available_timezones, system_timezone_name
 from anical.ui.sync_controller import SyncController
 
 
@@ -16,10 +18,12 @@ def format_time(epoch: int | None) -> str:
 
 
 class PreferencesDialog(Adw.PreferencesDialog):
-    def __init__(self, controller: SyncController):
+    def __init__(self, controller: SyncController, display: DisplaySettings):
         super().__init__(title="Preferences", search_enabled=False)
         self._controller = controller
+        self._display = display
         self._login_dialog: Adw.AlertDialog | None = None
+        self.add(self._general_page())
 
         self._page = Adw.PreferencesPage(title="MyAnimeList", icon_name="system-users-symbolic")
         self.add(self._page)
@@ -27,6 +31,43 @@ class PreferencesDialog(Adw.PreferencesDialog):
         self._handler = controller.connect("changed", lambda *_: self._rebuild())
         self.connect("closed", lambda *_: controller.disconnect(self._handler))
         self._rebuild()
+
+    def _general_page(self) -> Adw.PreferencesPage:
+        display = self._display
+        page = Adw.PreferencesPage(title="General", icon_name="preferences-system-symbolic")
+        group = Adw.PreferencesGroup(title="Calendar")
+
+        zones = [None, *sorted(available_timezones())]
+        names = Gtk.StringList.new([f"System Default ({system_timezone_name()})", *zones[1:]])
+        timezone = Adw.ComboRow(title="Time Zone", model=names, enable_search=True)
+        timezone.set_expression(Gtk.PropertyExpression.new(Gtk.StringObject, None, "string"))
+        current = display.timezone_name
+        timezone.set_selected(zones.index(current) if current in zones else 0)
+        timezone.connect("notify::selected", lambda row, _p: display.set(DISPLAY_TIMEZONE, zones[row.get_selected()]))
+        group.add(timezone)
+
+        week_start = Adw.ComboRow(title="Week Starts On", model=Gtk.StringList.new(["Monday", "Sunday"]))
+        week_start.set_selected(1 if display.first_weekday == 6 else 0)
+        week_start.connect(
+            "notify::selected", lambda row, _p: display.set(DISPLAY_WEEK_START, 6 if row.get_selected() else 0)
+        )
+        group.add(week_start)
+
+        english = Adw.SwitchRow(
+            title="Use English Titles", subtitle="When a show has an English title, use it in the calendar",
+            active=display.english_titles,
+        )
+        english.connect("notify::active", lambda row, _p: display.set(DISPLAY_ENGLISH_TITLES, row.get_active()))
+        group.add(english)
+
+        lag = Adw.SpinRow.new_with_range(0, 48, 1)
+        lag.set_title("Hours Until Available")
+        lag.set_subtitle("After an episode airs, how long until it is shown as probably watchable")
+        lag.set_value(display.availability_lag_s / 3600)
+        lag.connect("notify::value", lambda row, _p: display.set(AVAILABILITY_LAG_HOURS, row.get_value()))
+        group.add(lag)
+        page.add(group)
+        return page
 
     def _rebuild(self) -> None:
         for group in self._groups:
@@ -70,14 +111,13 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def _sync_group(self) -> Adw.PreferencesGroup:
         controller = self._controller
         group = Adw.PreferencesGroup(
-            title="Sync", description="Your list is synced when AniCal starts and once a day while it runs."
+            title="Sync", description="Your list and airing times refresh when AniCal starts and once a day while it runs."
         )
         row = Adw.ActionRow(title="Last Synced", subtitle=format_time(controller.last_run))
         if controller.busy:
             row.add_suffix(Adw.Spinner())
         else:
             sync = Gtk.Button(label="Sync Now", valign=Gtk.Align.CENTER)
-            sync.set_sensitive(controller.config.ready)
             sync.connect("clicked", lambda *_: controller.sync())
             row.add_suffix(sync)
         group.add(row)

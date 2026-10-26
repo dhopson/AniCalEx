@@ -15,6 +15,7 @@ from typing import Any
 
 from anical.domain.models import AiringStatus, MediaType
 from anical.net.http import HttpClient, Response
+from anical.net.throttle import Throttle, backoff_seconds
 
 API_BASE = "https://api.myanimelist.net/v2"
 LIST_FIELDS = ",".join(
@@ -211,11 +212,8 @@ class MalClient:
         self._http = http
         self._client_id = client_id
         self._access_token = access_token
-        self._min_interval = min_interval
         self._max_attempts = max_attempts
-        self._sleep = sleep
-        self._monotonic = monotonic
-        self._last_request: float | None = None
+        self._throttle = Throttle(min_interval, sleep, monotonic)
 
     def fetch_list(self, user: str = "@me") -> MalListResult:
         """Fetch the whole anime list, following `paging.next`."""
@@ -255,7 +253,7 @@ class MalClient:
         else:
             headers = {"X-MAL-CLIENT-ID": self._client_id}
         for attempt in range(1, self._max_attempts + 1):
-            self._throttle()
+            self._throttle.wait()
             response = self._http.request("GET", url, params=params, headers=headers)
             if response.status == 200:
                 try:
@@ -273,21 +271,5 @@ class MalClient:
                 if response.status == 403:
                     raise MalError("MyAnimeList refused the request (the list may be private)")
                 raise MalError(f"MyAnimeList error {response.status}{': ' + detail if detail else ''}")
-            self._sleep(self._backoff(response, attempt))
+            self._throttle.sleep(backoff_seconds(response, attempt))
         raise AssertionError("unreachable")
-
-    @staticmethod
-    def _backoff(response: Response, attempt: int) -> float:
-        retry_after = response.header("Retry-After")
-        if retry_after and retry_after.isdecimal():
-            return min(float(retry_after), 60.0)
-        return min(2.0 ** attempt, 30.0)
-
-    def _throttle(self) -> None:
-        now = self._monotonic()
-        if self._last_request is not None:
-            wait = self._min_interval - (now - self._last_request)
-            if wait > 0:
-                self._sleep(wait)
-                now += wait
-        self._last_request = now

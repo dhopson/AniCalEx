@@ -13,6 +13,10 @@ from anical.db.repository import Clock, system_clock
 MAL_CLIENT_ID = "mal.client_id"
 MAL_MODE = "mal.mode"  # "account" (OAuth login) or "username" (public list, client ID only)
 MAL_USERNAME = "mal.username"
+DISPLAY_TIMEZONE = "display.timezone"  # IANA name; unset = system time zone
+DISPLAY_WEEK_START = "display.week_start"  # 0 = Monday, 6 = Sunday
+AVAILABILITY_LAG_HOURS = "schedule.availability_lag_hours"
+DISPLAY_ENGLISH_TITLES = "display.english_titles"  # calendar shows English titles when known
 
 # Sync-state keys
 LAST_REFRESH_RUN = "refresh.last_run"  # epoch seconds of the last successful refresh; no automatic refresh within 24h of it

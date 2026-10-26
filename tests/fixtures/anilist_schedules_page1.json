@@ -1,0 +1,86 @@
+{
+ "data": {
+  "Page": {
+   "pageInfo": {
+    "hasNextPage": false
+   },
+   "airingSchedules": [
+    {
+     "mediaId": 1001,
+     "episode": 1,
+     "airingAt": 1790519400
+    },
+    {
+     "mediaId": 1002,
+     "episode": 1,
+     "airingAt": 1790782200
+    },
+    {
+     "mediaId": 1003,
+     "episode": 1,
+     "airingAt": 1790949600
+    },
+    {
+     "mediaId": 1001,
+     "episode": 2,
+     "airingAt": 1791124200
+    },
+    {
+     "mediaId": 1002,
+     "episode": 2,
+     "airingAt": 1791387000
+    },
+    {
+     "mediaId": 1003,
+     "episode": 2,
+     "airingAt": 1791554400
+    },
+    {
+     "mediaId": 1001,
+     "episode": 3,
+     "airingAt": 1791729000
+    },
+    {
+     "mediaId": 1002,
+     "episode": 3,
+     "airingAt": 1791991800
+    },
+    {
+     "mediaId": 1003,
+     "episode": 3,
+     "airingAt": 1792159200
+    },
+    {
+     "mediaId": 1001,
+     "episode": 4,
+     "airingAt": 1792333800
+    },
+    {
+     "mediaId": 1002,
+     "episode": 4,
+     "airingAt": 1792596600
+    },
+    {
+     "mediaId": 1003,
+     "episode": 4,
+     "airingAt": 1792764000
+    },
+    {
+     "mediaId": 1001,
+     "episode": 5,
+     "airingAt": 1792938600
+    },
+    {
+     "mediaId": 1002,
+     "episode": 5,
+     "airingAt": 1793201400
+    },
+    {
+     "mediaId": 1003,
+     "episode": 5,
+     "airingAt": 1793368800
+    }
+   ]
+  }
+ }
+}

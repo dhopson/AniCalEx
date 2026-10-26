@@ -4,24 +4,7 @@ from __future__ import annotations
 
 from gi.repository import Gdk, GLib, Gtk
 
-_CSS = """
-.cover { border-radius: 6px; }
-.cover-placeholder {
-  border-radius: 6px;
-  background-color: alpha(currentColor, 0.08);
-  font-weight: bold;
-}
-"""
-
 _textures: dict[str, Gdk.Texture | None] = {}
-
-
-def install_css() -> None:
-    provider = Gtk.CssProvider()
-    provider.load_from_string(_CSS)
-    Gtk.StyleContext.add_provider_for_display(
-        Gdk.Display.get_default(), provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
-    )
 
 
 def _texture(path: str) -> Gdk.Texture | None:

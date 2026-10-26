@@ -11,12 +11,13 @@ from gi.repository import GLib
 
 from anical.auth.mal_oauth import OAuthError
 from anical.net.http import NetworkError
+from anical.providers.anilist import AniListError
 from anical.providers.mal import MalError
 from anical.sync.mal_sync import MalSyncError
 
 T = TypeVar("T")
 # Failures with a user-facing message; anything else also gets a traceback on stderr.
-_EXPECTED = (OAuthError, NetworkError, MalError, MalSyncError)
+_EXPECTED = (OAuthError, NetworkError, MalError, MalSyncError, AniListError)
 
 
 def run_in_thread(work: Callable[[], T], on_done: Callable[[T], None], on_error: Callable[[Exception], None]) -> None:

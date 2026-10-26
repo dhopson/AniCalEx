@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from gi.repository import Adw, GObject, Gio, Gtk
+from gi.repository import Adw, Gtk
 
 from anical.domain.library import LibraryQuery, SortKey, WatchFilter, matches, sort_key
 from anical.domain.models import MAL_LIST_STATUS_LABELS, AiringStatus, AnimeSummary
@@ -38,46 +38,22 @@ class AnimeRow(Adw.ActionRow):
         self.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
 
 
-class LibraryPage(Adw.NavigationPage):
+class LibraryView(Adw.Bin):
+    """All shows, with search, filters and sorting. Lives in the main window's view stack."""
+
     def __init__(self, window: MainWindow):
-        super().__init__(title="Library", tag="library")
+        super().__init__()
         self._window = window
         self._summaries: list[AnimeSummary] = []
 
-        header = Adw.HeaderBar()
-        header.pack_start(Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Add Anime", action_name="win.add-anime"))
-        menu = Gio.Menu()
-        actions = Gio.Menu()
-        actions.append("Sync With MyAnimeList", "win.sync")
-        menu.append_section(None, actions)
-        app_items = Gio.Menu()
-        app_items.append("Preferences", "app.preferences")
-        app_items.append("About AniCal", "app.about")
-        menu.append_section(None, app_items)
-        header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=menu, tooltip_text="Main Menu", primary=True))
-        search_button = Gtk.ToggleButton(icon_name="system-search-symbolic", tooltip_text="Search")
-        header.pack_end(search_button)
-        self._spinner = Adw.Spinner(tooltip_text="Syncing with MyAnimeList", visible=False)
-        header.pack_end(self._spinner)
-
-        self._banner = Adw.Banner(button_label="Retry")
-        self._banner.connect("button-clicked", lambda *_: window.sync_controller.sync())
-
         self._search_entry = Gtk.SearchEntry(placeholder_text="Search titles and tags", hexpand=True)
         self._search_entry.connect("search-changed", self._on_query_changed)
-        self._search_bar = Gtk.SearchBar(child=Adw.Clamp(child=self._search_entry, maximum_size=500))
-        self._search_bar.connect_entry(self._search_entry)
-        self._search_bar.set_key_capture_widget(window)
-        search_button.bind_property(
-            "active", self._search_bar, "search-mode-enabled",
-            GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE,
-        )
+        self.search_bar = Gtk.SearchBar(child=Adw.Clamp(child=self._search_entry, maximum_size=500))
+        self.search_bar.connect_entry(self._search_entry)
 
         self._status_filter = self._dropdown(["Any Status", *(s.label for s in AiringStatus)], "Airing status")
         self._watch_filter = self._dropdown([f.label for f in _WATCH_FILTERS], "Watch progress")
-        self._list_filter = self._dropdown(
-            ["Any List", *MAL_LIST_STATUS_LABELS.values()], "MyAnimeList list status"
-        )
+        self._list_filter = self._dropdown(["Any List", *MAL_LIST_STATUS_LABELS.values()], "MyAnimeList list status")
         self._sort = self._dropdown([f"Sort: {k.label}" for k in _SORT_KEYS], "Sort order")
         self._filter_bar = Gtk.FlowBox(
             selection_mode=Gtk.SelectionMode.NONE, halign=Gtk.Align.CENTER, max_children_per_line=4,
@@ -87,11 +63,11 @@ class LibraryPage(Adw.NavigationPage):
             self._filter_bar.append(dropdown)
 
         self._list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"], valign=Gtk.Align.START)
+        self._list.connect("row-activated", lambda _list, row: window.show_anime(row.anime_id))
         # Rows are built once per reload; queries only re-filter and re-sort them.
         self._current_query = LibraryQuery()
         self._list.set_filter_func(lambda row: matches(row.summary, self._current_query))
         self._list.set_sort_func(self._compare_rows)
-        self._list.connect("row-activated", lambda _list, row: window.show_anime(row.anime_id))
         list_view = Gtk.ScrolledWindow(
             hscrollbar_policy=Gtk.PolicyType.NEVER,
             child=Adw.Clamp(child=self._list, margin_top=12, margin_bottom=24, margin_start=12, margin_end=12),
@@ -119,15 +95,9 @@ class LibraryPage(Adw.NavigationPage):
         self._stack.add_named(no_results, "no-results")
 
         view = Adw.ToolbarView(content=self._stack)
-        view.add_top_bar(header)
-        view.add_top_bar(self._banner)
-        view.add_top_bar(self._search_bar)
+        view.add_top_bar(self.search_bar)
         view.add_top_bar(self._filter_bar)
         self.set_child(view)
-
-        window.sync_controller.connect("changed", lambda *_: self._update_sync_state())
-        window.sync_controller.connect("library-changed", lambda *_: self.reload())
-        self._update_sync_state()
         self.reload()
 
     def _dropdown(self, labels: list[str], accessible_name: str) -> Gtk.DropDown:
@@ -138,26 +108,7 @@ class LibraryPage(Adw.NavigationPage):
         return dropdown
 
     def toggle_search(self) -> None:
-        self._search_bar.set_search_mode(not self._search_bar.get_search_mode())
-
-    def _update_sync_state(self) -> None:
-        controller = self._window.sync_controller
-        self._spinner.set_visible(controller.busy)
-        error = controller.error
-        self._banner.set_title(error or "")
-        self._banner.set_revealed(bool(error) and not controller.busy)
-
-    def _query(self) -> LibraryQuery:
-        return LibraryQuery(
-            text=self._search_entry.get_text(),
-            airing_status=_STATUSES[self._status_filter.get_selected()],
-            watch_filter=_WATCH_FILTERS[self._watch_filter.get_selected()],
-            sort=_SORT_KEYS[self._sort.get_selected()],
-            mal_list_status=_LIST_STATUSES[self._list_filter.get_selected()],
-        )
-
-    def _on_query_changed(self, *_):
-        self._render()
+        self.search_bar.set_search_mode(not self.search_bar.get_search_mode())
 
     def _compare_rows(self, a: AnimeRow, b: AnimeRow) -> int:
         key_a = sort_key(a.summary, self._current_query.sort)
@@ -170,6 +121,18 @@ class LibraryPage(Adw.NavigationPage):
         self._list.remove_all()
         for summary in self._summaries:
             self._list.append(AnimeRow(summary))
+        self._render()
+
+    def _query(self) -> LibraryQuery:
+        return LibraryQuery(
+            text=self._search_entry.get_text(),
+            airing_status=_STATUSES[self._status_filter.get_selected()],
+            watch_filter=_WATCH_FILTERS[self._watch_filter.get_selected()],
+            sort=_SORT_KEYS[self._sort.get_selected()],
+            mal_list_status=_LIST_STATUSES[self._list_filter.get_selected()],
+        )
+
+    def _on_query_changed(self, *_):
         self._render()
 
     def _render(self) -> None:

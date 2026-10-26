@@ -1,16 +1,19 @@
-"""Coordinates MyAnimeList sync and login between worker threads and the UI."""
+"""Coordinates refreshes (MAL list, airing schedules, covers) and MAL login
+between worker threads and the UI."""
 
 from __future__ import annotations
 
 import secrets
 import threading
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from gi.repository import GLib, GObject
 
 from anical.auth.mal_oauth import CallbackReceiver, LoginCancelled, OAuthError, authorize_url, new_verifier
-from anical.db.mal_import import apply_mal_list
+from anical.db.mal_import import ImportSummary, apply_mal_list
 from anical.db.repository import Clock, LibraryRepository, system_clock
+from anical.db.schedule import ScheduleRepository, ScheduleSummary
 from anical.db.settings import (
     LAST_REFRESH_ERROR,
     LAST_REFRESH_RUN,
@@ -23,6 +26,7 @@ from anical.domain.refresh import refresh_due
 from anical.net.http import HttpClient, NetworkError
 from anical.sync.covers import download_covers
 from anical.sync.mal_sync import ACCOUNT, USERNAME, MalConfig, MalSyncService
+from anical.sync.schedule_sync import ScheduleFetch, fetch_schedules
 from anical.ui.tasks import run_in_thread
 
 LOGIN_TIMEOUT_S = 5 * 60
@@ -31,8 +35,15 @@ _CHECK_INTERVAL_S = 60 * 60
 
 def describe_error(error: Exception) -> str:
     if isinstance(error, NetworkError):
-        return "Couldn’t reach MyAnimeList. Showing saved data."
+        return "couldn’t connect. Showing saved data."
     return str(error) or error.__class__.__name__
+
+
+@dataclass
+class RefreshResult:
+    mal: ImportSummary | None = None
+    schedule: ScheduleSummary | None = None
+    errors: list[str] = field(default_factory=list)
 
 
 class SyncController(GObject.Object):
@@ -53,6 +64,7 @@ class SyncController(GObject.Object):
         http: HttpClient,
         cover_dir: Path,
         clock: Clock = system_clock,
+        schedule_fetcher=fetch_schedules,
     ):
         super().__init__()
         self._repo = repository
@@ -61,8 +73,11 @@ class SyncController(GObject.Object):
         self._http = http
         self._cover_dir = cover_dir
         self._clock = clock
+        self._schedule = ScheduleRepository(repository.connection, clock)
+        self._fetch_schedules = schedule_fetcher
         self.busy = False
         self._timer_id = 0
+        self._run = RefreshResult()
 
     # State
 
@@ -112,27 +127,80 @@ class SyncController(GObject.Object):
         return GLib.SOURCE_CONTINUE
 
     def sync_if_due(self) -> None:
-        if self.config.ready and refresh_due(self.last_run, self._clock()):
+        if not refresh_due(self.last_run, self._clock()):
+            return
+        if self.config.ready or self._schedule.targets(self._clock()):
             self.sync()
 
     def sync(self) -> None:
-        config = self.config
-        if self.busy or not config.ready:
+        """Refresh everything: MAL list (if set up) → AniList schedules → estimates → covers.
+
+        Each step commits on its own, so a failure keeps what earlier steps
+        saved and never discards existing data. The run only counts as the
+        "last successful refresh" if every step succeeded.
+        """
+        if self.busy:
             return
         self._set_busy(True)
-        run_in_thread(lambda: self._service.fetch(config), self._on_fetched, self._on_failed)
+        self._run = RefreshResult()
+        config = self.config
+        if config.ready:
+            run_in_thread(
+                lambda: self._service.fetch(config),
+                self._on_mal_fetched,
+                lambda e: self._step_failed("MyAnimeList", e, self._refresh_schedules),
+            )
+        else:
+            self._refresh_schedules()
 
-    def _on_fetched(self, result) -> None:
-        now = self._clock()
+    def _on_mal_fetched(self, result) -> None:
         try:
-            summary = apply_mal_list(self._repo.connection, result, now)
+            self._run.mal = apply_mal_list(self._repo.connection, result, self._clock())
         except Exception as e:  # noqa: BLE001 - shown to the user; the import rolled back
-            self._on_failed(e)
+            self._step_failed("MyAnimeList", e, self._refresh_schedules)
             return
-        self._settings.set_state(LAST_REFRESH_RUN, str(now))
-        self._settings.set_state(LAST_REFRESH_ERROR, None)
         self.emit("library-changed")
-        self.emit("synced", summary)
+        self._refresh_schedules()
+
+    def _refresh_schedules(self) -> None:
+        now = self._clock()
+        targets = self._schedule.targets(now)
+        if not targets:
+            self._project_estimates()
+            return
+        run_in_thread(
+            lambda: self._fetch_schedules(self._http, targets, now),
+            self._on_schedules_fetched,
+            lambda e: self._step_failed("AniList", e, self._project_estimates),
+        )
+
+    def _on_schedules_fetched(self, fetch: ScheduleFetch) -> None:
+        try:
+            self._run.schedule = self._schedule.apply_anilist(fetch.media, fetch.slots, fetch.window_end, self._clock())
+        except Exception as e:  # noqa: BLE001 - rolled back; existing schedule kept
+            self._step_failed("AniList", e, self._project_estimates)
+            return
+        self._project_estimates()
+
+    def _project_estimates(self) -> None:
+        self._schedule.project_broadcasts(self._clock())  # local only; runs even when offline
+        self.emit("library-changed")
+        self._finish_refresh()
+
+    def _step_failed(self, source: str, error: Exception, next_step) -> None:
+        self._run.errors.append(f"{source}: {describe_error(error)}")
+        if isinstance(error, NetworkError):
+            self._project_estimates()  # offline: skip the remaining network steps
+        else:
+            next_step()
+
+    def _finish_refresh(self) -> None:
+        if self._run.errors:
+            self._settings.set_state(LAST_REFRESH_ERROR, "; ".join(self._run.errors))
+        else:
+            self._settings.set_state(LAST_REFRESH_RUN, str(self._clock()))
+            self._settings.set_state(LAST_REFRESH_ERROR, None)
+        self.emit("synced", self._run)
         self._fetch_covers()
 
     def _fetch_covers(self) -> None:
@@ -150,10 +218,6 @@ class SyncController(GObject.Object):
         if saved:
             self._repo.set_cover_paths(saved)
             self.emit("library-changed")
-        self._set_busy(False)
-
-    def _on_failed(self, error: Exception) -> None:
-        self._settings.set_state(LAST_REFRESH_ERROR, describe_error(error))
         self._set_busy(False)
 
     def _set_busy(self, busy: bool) -> None:
@@ -189,7 +253,10 @@ class SyncController(GObject.Object):
             self.sync()
 
         def failed(error: Exception) -> None:
-            on_finished(None if isinstance(error, LoginCancelled) else describe_error(error))
+            if isinstance(error, LoginCancelled):
+                on_finished(None)
+            else:
+                on_finished(f"MyAnimeList login failed: {describe_error(error)}")
 
         run_in_thread(work, done, failed)
         return authorize_url(client_id, verifier, state), cancelled

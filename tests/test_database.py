@@ -90,3 +90,12 @@ def test_transaction_rolls_back_on_error(conn):
             conn.execute("INSERT INTO settings (key, value_json) VALUES ('a', '1')")
             raise RuntimeError
     assert conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0] == 0
+
+
+def test_schedule_migration_forces_a_refresh():
+    conn = connect(":memory:")
+    migrations = load_migrations()
+    migrate(conn, migrations[:2])
+    conn.execute("INSERT INTO sync_state (key, value, updated_at) VALUES ('refresh.last_run', '1790000000', 0)")
+    migrate(conn, migrations)
+    assert conn.execute("SELECT COUNT(*) FROM sync_state WHERE key = 'refresh.last_run'").fetchone()[0] == 0

@@ -46,6 +46,7 @@ class HttpClient(Protocol):
         params: Mapping[str, str] | None = None,
         headers: Mapping[str, str] | None = None,
         form: Mapping[str, str] | None = None,
+        json_body: Any = None,
     ) -> Response: ...
 
 
@@ -53,14 +54,19 @@ class UrllibClient:
     def __init__(self, timeout: float = 20):
         self._timeout = timeout
 
-    def request(self, method, url, *, params=None, headers=None, form=None) -> Response:
+    def request(self, method, url, *, params=None, headers=None, form=None, json_body=None) -> Response:
         if params:
             url = f"{url}{'&' if '?' in url else '?'}{urllib.parse.urlencode(params)}"
-        data = urllib.parse.urlencode(form).encode() if form is not None else None
-        request = urllib.request.Request(url, data=data, method=method)
-        request.add_header("User-Agent", USER_AGENT)
+        data = None
+        request_headers = {"User-Agent": USER_AGENT}
         if form is not None:
-            request.add_header("Content-Type", "application/x-www-form-urlencoded")
+            data = urllib.parse.urlencode(form).encode()
+            request_headers["Content-Type"] = "application/x-www-form-urlencoded"
+        elif json_body is not None:
+            data = json.dumps(json_body).encode()
+            request_headers["Content-Type"] = "application/json"
+            request_headers["Accept"] = "application/json"
+        request = urllib.request.Request(url, data=data, method=method, headers=request_headers)
         for name, value in (headers or {}).items():
             request.add_header(name, value)
         try:

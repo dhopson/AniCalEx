@@ -20,7 +20,8 @@ from anical.db.repository import LibraryRepository  # noqa: E402
 from anical.db.settings import SettingsRepository  # noqa: E402
 from anical.net.http import UrllibClient  # noqa: E402
 from anical.sync.mal_sync import MalSyncService  # noqa: E402
-from anical.ui.cover import install_css  # noqa: E402
+from anical.ui.style import install_css  # noqa: E402
+from anical.ui.display import DisplaySettings  # noqa: E402
 from anical.ui.preferences import PreferencesDialog  # noqa: E402
 from anical.ui.sync_controller import SyncController  # noqa: E402
 from anical.ui.window import DatabaseErrorWindow, MainWindow  # noqa: E402
@@ -43,6 +44,7 @@ class AniCalApplication(Adw.Application):
         super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
         self._conn = None
         self._sync: SyncController | None = None
+        self._display: DisplaySettings | None = None
 
     def do_startup(self):
         Adw.Application.do_startup(self)
@@ -71,15 +73,15 @@ class AniCalApplication(Adw.Application):
             DatabaseErrorWindow(application=self, path=path, error=e).present()
             return
         repository = LibraryRepository(self._conn)
+        settings = SettingsRepository(self._conn)
         http = UrllibClient()
         self._sync = SyncController(
-            repository,
-            SettingsRepository(self._conn),
-            MalSyncService(http, KeyringTokenStore()),
-            http,
-            cache_dir() / "covers",
+            repository, settings, MalSyncService(http, KeyringTokenStore()), http, cache_dir() / "covers"
         )
-        MainWindow(application=self, repository=repository, sync_controller=self._sync).present()
+        self._display = DisplaySettings(settings)
+        MainWindow(
+            application=self, repository=repository, sync_controller=self._sync, display=self._display
+        ).present()
         self._sync.start()  # local data is already on screen; refresh in the background if due
 
     def do_shutdown(self):
@@ -91,7 +93,7 @@ class AniCalApplication(Adw.Application):
 
     def _on_preferences(self, *_):
         if self._sync is not None:
-            PreferencesDialog(self._sync).present(self.get_active_window())
+            PreferencesDialog(self._sync, self._display).present(self.get_active_window())
 
     def _on_about(self, *_):
         Adw.AboutDialog(
