@@ -31,6 +31,11 @@ credentials*
 *.sqlite
 *.bak
 
+# --- Package build outputs (makepkg) ---
+packaging/pkg/
+packaging/src/
+*.pkg.tar.*
+
 # --- Python and tooling ---
 .venv/
 __pycache__/

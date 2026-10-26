@@ -26,6 +26,9 @@ from anical.ui.editor import AnimeEditorDialog
 if TYPE_CHECKING:
     from anical.ui.window import MainWindow
 
+# Above this many episodes, only a window around the viewer's progress is built.
+EPISODE_WINDOW = 60
+
 
 _FIELD_LABELS = {
     "title": "Title",
@@ -134,6 +137,7 @@ class ShowPage(Adw.NavigationPage):
         self.set_child(view)
 
         self._count_label: Gtk.Label | None = None
+        self._show_all_episodes = False
         self.refresh()
 
     def refresh(self) -> None:
@@ -257,10 +261,30 @@ class ShowPage(Adw.NavigationPage):
             )
             group.add(row)
         now = int(time.time())
-        for episode in episode_list.episodes:
+        episodes = episode_list.episodes
+        start, end = 0, len(episodes)
+        if not self._show_all_episodes and len(episodes) > EPISODE_WINDOW:
+            # Long shows: the stretch around the next unwatched episode, not all of them.
+            next_index = next((i for i, e in enumerate(episodes) if e.state is WatchState.UNWATCHED), len(episodes) - 1)
+            start = max(0, min(next_index - 10, len(episodes) - EPISODE_WINDOW))
+            end = start + EPISODE_WINDOW
+        if start > 0:
+            group.add(self._expand_row(f"Show {start} Earlier Episodes"))
+        for episode in episodes[start:end]:
             group.add(self._episode_row(episode, airings.get(episode.id), now))
+        if end < len(episodes):
+            group.add(self._expand_row(f"Show {len(episodes) - end} Later Episodes"))
         self._actions.lookup_action("clear-air-dates").set_enabled(self._schedule.has_user_airings(self._anime_id))
         return group
+
+    def _expand_row(self, title: str) -> Adw.ButtonRow:
+        row = Adw.ButtonRow(title=title, start_icon_name="view-more-horizontal-symbolic")
+        row.connect("activated", lambda *_: self._expand_episodes())
+        return row
+
+    def _expand_episodes(self) -> None:
+        self._show_all_episodes = True
+        self.refresh()
 
     def _airing_text(self, airing: EpisodeAiring) -> str:
         display = self._window.display

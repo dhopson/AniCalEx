@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 import datetime
+import sqlite3
+import time
+from collections.abc import Callable
+from pathlib import Path
 
-from gi.repository import Adw, Gtk
+from gi.repository import Adw, Gio, GLib, Gtk
 
 from anical.auth.mal_oauth import REDIRECT_URI, OAuthError
+from anical.db.backup import BackupError, backup_to, restore_from
 from anical.db.settings import (
     AVAILABILITY_LAG_HOURS,
     DISPLAY_ENGLISH_TITLES,
     DISPLAY_TIMEZONE,
     DISPLAY_WEEK_START,
+    NOTIFICATIONS_ENABLED,
     PLAYBACK_AUTO_MARK,
     PLAYBACK_EXECUTABLE,
     PLAYBACK_MODE,
@@ -31,14 +37,26 @@ def format_time(epoch: int | None) -> str:
 
 
 class PreferencesDialog(Adw.PreferencesDialog):
-    def __init__(self, controller: SyncController, display: DisplaySettings, playback: PlaybackController):
+    def __init__(
+        self,
+        controller: SyncController,
+        display: DisplaySettings,
+        playback: PlaybackController,
+        connection: sqlite3.Connection,
+        data_dir: Path,
+        on_restored: Callable[[], None],
+    ):
         super().__init__(title="Preferences", search_enabled=False)
         self._controller = controller
         self._display = display
         self._playback = playback
+        self._connection = connection
+        self._data_dir = data_dir
+        self._on_restored = on_restored
         self._login_dialog: Adw.AlertDialog | None = None
         self.add(self._general_page())
         self.add(self._playback_page())
+        self.add(self._data_page())
 
         self._page = Adw.PreferencesPage(title="MyAnimeList", icon_name="system-users-symbolic")
         self.add(self._page)
@@ -82,7 +100,23 @@ class PreferencesDialog(Adw.PreferencesDialog):
         lag.connect("notify::value", lambda row, _p: display.set(AVAILABILITY_LAG_HOURS, row.get_value()))
         group.add(lag)
         page.add(group)
+
+        notifications = Adw.PreferencesGroup(
+            title="Notifications", description="Only while AniCal is running. Estimated air times are never announced."
+        )
+        enabled = Adw.SwitchRow(
+            title="New Episodes",
+            subtitle="Notify when an episode you follow is probably available to watch",
+            active=self._display_setting(NOTIFICATIONS_ENABLED, True),
+        )
+        enabled.connect("notify::active", lambda row, _p: display.set(NOTIFICATIONS_ENABLED, row.get_active()))
+        notifications.add(enabled)
+        page.add(notifications)
         return page
+
+    def _display_setting(self, key: str, default):
+        value = self._display.get(key)
+        return default if value is None else value
 
     def _playback_page(self) -> Adw.PreferencesPage:
         playback = self._playback
@@ -136,6 +170,91 @@ class PreferencesDialog(Adw.PreferencesDialog):
         options.add(auto_mark)
         page.add(options)
         return page
+
+    def _data_page(self) -> Adw.PreferencesPage:
+        page = Adw.PreferencesPage(title="Data", icon_name="drive-harddisk-symbolic")
+        group = Adw.PreferencesGroup(
+            title="Backups",
+            description="AniCal keeps the last four weekly backups automatically. Your library never leaves this computer.",
+        )
+        backup = Adw.ActionRow(title="Back Up Library", subtitle="Save a copy anywhere, e.g. another drive")
+        button = Gtk.Button(label="Back Up…", valign=Gtk.Align.CENTER)
+        button.connect("clicked", lambda *_: self._choose_backup_file())
+        backup.add_suffix(button)
+        group.add(backup)
+
+        restore = Adw.ActionRow(title="Restore From Backup", subtitle="Your current library is saved first")
+        button = Gtk.Button(label="Restore…", valign=Gtk.Align.CENTER)
+        button.connect("clicked", lambda *_: self._choose_restore_file())
+        restore.add_suffix(button)
+        group.add(restore)
+
+        folder = Adw.ActionRow(title="Data Folder", subtitle=str(self._data_dir), use_markup=False)
+        button = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Open Data Folder")
+        button.connect(
+            "clicked", lambda *_: Gtk.FileLauncher.new(Gio.File.new_for_path(str(self._data_dir))).launch(self, None, None)
+        )
+        folder.add_suffix(button)
+        group.add(folder)
+        page.add(group)
+        return page
+
+    def _choose_backup_file(self) -> None:
+        dialog = Gtk.FileDialog(title="Back Up Library", initial_name=f"anical-backup-{datetime.date.today()}.db")
+
+        def chosen(_dialog, result):
+            try:
+                file = dialog.save_finish(result)
+            except GLib.Error:
+                return  # cancelled
+            try:
+                backup_to(self._connection, Path(file.get_path()))
+            except (OSError, sqlite3.Error) as e:
+                self.add_toast(Adw.Toast(title=f"Backup failed: {e}", use_markup=False))
+                return
+            self.add_toast(Adw.Toast(title="Library backed up", use_markup=False))
+
+        dialog.save(self.get_root(), None, chosen)
+
+    def _choose_restore_file(self) -> None:
+        dialog = Gtk.FileDialog(title="Restore From Backup")
+
+        def chosen(_dialog, result):
+            try:
+                file = dialog.open_finish(result)
+            except GLib.Error:
+                return
+            self._confirm_restore(Path(file.get_path()))
+
+        dialog.open(self.get_root(), None, chosen)
+
+    def _confirm_restore(self, path: Path) -> None:
+        confirm = Adw.AlertDialog(
+            heading="Replace Your Library?",
+            body=f"Everything in AniCal is replaced with the backup “{path.name}”. "
+            "A copy of your current library is saved in the backups folder first.",
+        )
+        confirm.add_response("cancel", "Cancel")
+        confirm.add_response("restore", "Restore")
+        confirm.set_response_appearance("restore", Adw.ResponseAppearance.DESTRUCTIVE)
+        confirm.set_default_response("cancel")
+        confirm.set_close_response("cancel")
+
+        def respond(_dialog, response: str) -> None:
+            if response != "restore":
+                return
+            stamp = time.strftime("%Y%m%d-%H%M%S")
+            safety = self._data_dir / "backups" / f"anical-before-restore-{stamp}.db"
+            try:
+                restore_from(self._connection, path, safety)
+            except (BackupError, OSError, sqlite3.Error) as e:
+                self.add_toast(Adw.Toast(title=f"Couldn’t restore: {e}", use_markup=False))
+                return
+            self._on_restored()
+            self.add_toast(Adw.Toast(title="Library restored", use_markup=False))
+
+        confirm.connect("response", respond)
+        confirm.present(self)
 
     def _rebuild(self) -> None:
         for group in self._groups:

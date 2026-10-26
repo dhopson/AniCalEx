@@ -69,7 +69,7 @@ class CalendarView(Adw.Bin):
             ("go-next-symbolic", None, "Next", 1),
         ):
             button = Gtk.Button(icon_name=icon, tooltip_text=tooltip) if icon else Gtk.Button(label=label)
-            button.connect("clicked", lambda _b, s=steps: self._navigate(s))
+            button.connect("clicked", lambda _b, s=steps: self.navigate(s))
             self._nav.append(button)
         self._title = Gtk.Label(css_classes=["title-4"], ellipsize=Pango.EllipsizeMode.END, hexpand=True, xalign=0.5)
 
@@ -108,7 +108,8 @@ class CalendarView(Adw.Bin):
     def _today(self) -> datetime.date:
         return datetime.datetime.now(self._display.timezone).date()
 
-    def _navigate(self, steps: int) -> None:
+    def navigate(self, steps: int) -> None:
+        """Move by `steps` periods of the current mode; 0 returns to today."""
         if self._mode == UNWATCHED:
             return
         self._anchor = self._today() if steps == 0 else shift(CalendarMode(self._mode), self._anchor, steps)
@@ -118,6 +119,9 @@ class CalendarView(Adw.Bin):
         if mode and mode != self._mode:
             self._mode = mode
             self.render()
+
+    def show_mode(self, mode: str) -> None:
+        self._modes.set_active_name(mode)  # renders via notify
 
     def show_day(self, day: datetime.date) -> None:
         self._anchor = day

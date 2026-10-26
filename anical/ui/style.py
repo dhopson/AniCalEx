@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
+import importlib.resources
+
 from gi.repository import Gdk, Gtk
+
+from anical import APP_ID
 
 _CSS = """
 .cover { border-radius: 6px; }
@@ -69,6 +73,14 @@ button.cal-cell.compact { min-height: 44px; }
 .cal-today { color: var(--accent-color); font-weight: bold; }
 .cal-outside { opacity: 0.45; }
 """
+
+
+def install_icons() -> None:
+    """Make the bundled app icon findable when running from source (installed copies
+    live in the system icon theme), and use it for windows."""
+    icons = importlib.resources.files("anical") / "data" / "icons"
+    Gtk.IconTheme.get_for_display(Gdk.Display.get_default()).add_search_path(str(icons))
+    Gtk.Window.set_default_icon_name(APP_ID)
 
 
 def install_css() -> None:

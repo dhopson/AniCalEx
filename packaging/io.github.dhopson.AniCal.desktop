@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=AniCal
+GenericName=Anime Calendar
+Comment=Track anime, see when new episodes air, and play them with ani-cli
+Exec=anical
+Icon=io.github.dhopson.AniCal
+Terminal=false
+Type=Application
+Categories=AudioVideo;Video;GTK;
+Keywords=anime;calendar;schedule;episodes;myanimelist;anilist;ani-cli;
+StartupNotify=true
+X-GNOME-UsesNotifications=true

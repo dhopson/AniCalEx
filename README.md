@@ -2,7 +2,7 @@
 
 AniCal is a GNOME desktop app for tracking anime. It keeps a local library of shows and which episodes you've watched, imports your MyAnimeList list, shows when new episodes air in a calendar, and plays episodes through your existing [`ani-cli`](https://github.com/pystardust/ani-cli) installation.
 
-**Status: Phase 4, playback through ani-cli.**
+**Status: 0.1.0, all planned phases complete.**
 
 - **Local library.** You can add, edit and delete shows by hand. Episodes can be marked watched one at a time or all at once, with undo. The library can be searched, filtered and sorted. All of this works offline, with no account.
 - **MyAnimeList import.** You can log in through your browser (OAuth with PKCE), or import a public list by username. Imports run when the app starts if the last successful sync was more than 24 hours ago, then once a day while the app runs, and on demand with <kbd>Ctrl</kbd>+<kbd>R</kbd>.
@@ -30,6 +30,11 @@ AniCal is a GNOME desktop app for tracking anime. It keeps a local library of sh
     - Automatic marking can be turned off in Preferences → Playback.
   - **ani-cli's history:** shown as a hint ("Last launched: Episode 5"), because it records what was started, not what was finished. It is never applied automatically. AniCal never writes to it.
   - **Safety:** ani-cli runs without a shell, with the title as a single argument, and only one playback runs at a time. Clear messages cover a missing ani-cli, an episode that isn't released yet, a search that finds nothing (with a button to change the search), and failures.
+- **Notifications.** While AniCal runs, you're told once per episode when an episode you follow becomes probably available. Each notification has Play and Open buttons, and more than three at once become a single summary.
+  - Estimated times are never announced.
+  - Nothing older than 12 hours is announced, so reopening the app after a break doesn't flood you.
+  - You can turn notifications off in Preferences → General.
+- **Backups.** A rolling set of four weekly backups is kept automatically. Preferences → Data can back up to any file or restore from one; the current library is saved before a restore, and older backups are upgraded.
 
 ### Connecting MyAnimeList
 
@@ -42,6 +47,15 @@ AniCal is a GNOME desktop app for tracking anime. It keeps a local library of sh
 The login token is stored in your desktop keyring (Secret Service), never in a file. Requests to MyAnimeList carry only the token or the client ID, plus your username when you import a public list.
 
 AniList requests contain only the MAL and AniList IDs of shows in your library, with no account and no watch history. They are paced to stay inside AniList's rate limit.
+
+## Install (Arch / CachyOS)
+
+```sh
+cd packaging
+makepkg -si      # builds from this checkout; pulls in python-build and python-installer
+```
+
+This installs the `anical` command, a desktop entry, the icon and AppStream metadata, so AniCal appears in GNOME's app grid. To remove it: `sudo pacman -R anical`. Your library stays in `~/.local/share/anical/`.
 
 ## Requirements
 
@@ -71,12 +85,26 @@ UI smoke tests (`tests/test_ui_smoke.py`) build the real widgets and are skipped
 |---|---|
 | Library database (SQLite) | `$XDG_DATA_HOME/anical/anical.db` (usually `~/.local/share/anical/`) |
 | Pre-upgrade backups | `anical.db.pre-migration-<timestamp>.bak` in the same folder |
+| Automatic weekly backups (last 4) | `~/.local/share/anical/backups/` |
 | Cover images (re-downloadable) | `$XDG_CACHE_HOME/anical/covers/` |
 | MyAnimeList login token | desktop keyring, item "AniCal MyAnimeList login" |
 
 Each schema migration runs in its own transaction. If the database already holds data, it is copied before any upgrade. If the file is unreadable, or was written by a newer version of AniCal, the app shows an error and leaves the file untouched.
 
-To back up your library by hand while the app is closed, copy `anical.db`. With the app running, use `sqlite3 ~/.local/share/anical/anical.db ".backup anical-backup.db"`.
+Backups are complete SQLite files, so any one of them can be restored from Preferences → Data. Before a restore, a copy of the current library is saved as `backups/anical-before-restore-*.db`.
+
+## Privacy
+
+Everything stays on your computer unless one of these applies:
+
+| Service | What is sent | When |
+|---|---|---|
+| MyAnimeList | Your login token or the client ID; your username for a public list | Refreshes |
+| AniList | MAL and AniList IDs of shows in your library | Refreshes |
+| MyAnimeList's image server | Requests for cover images | New covers only |
+| ani-cli | The search text and episode number | When you press Play (ani-cli then contacts its own sources) |
+
+Watch history is never sent anywhere.
 
 ## Layout
 
@@ -90,8 +118,25 @@ anical/
   auth/             MAL OAuth (PKCE plain, loopback receiver) and keyring token storage
   sync/             worker-thread fetchers (MAL list, AniList schedules) and cover cache
   playback/         ani-cli picker (ANI_CLI_MENU) and mpv progress script, installed at runtime
+  data/icons/       app icon (full colour and symbolic)
+packaging/          PKGBUILD, desktop entry, AppStream metadata
   ui/               window, calendar and library views, show page, dialogs, preferences, refresh controller
 tests/              pytest
 ```
 
-Keyboard shortcuts: <kbd>Ctrl</kbd>+<kbd>N</kbd> adds a show, <kbd>Ctrl</kbd>+<kbd>F</kbd> searches (you can also just start typing in the library), <kbd>Ctrl</kbd>+<kbd>R</kbd> refreshes, <kbd>Ctrl</kbd>+<kbd>,</kbd> opens Preferences, and <kbd>Ctrl</kbd>+<kbd>Q</kbd> quits.
+## License
+
+MIT. See `LICENSE`. AniCal runs ani-cli as a separate program and includes none of its code.
+
+Keyboard shortcuts (the full list is under <kbd>Ctrl</kbd>+<kbd>?</kbd>):
+
+| Shortcut | Action |
+|---|---|
+| <kbd>Ctrl</kbd>+<kbd>N</kbd> | Add a show |
+| <kbd>Ctrl</kbd>+<kbd>F</kbd> | Search (or just start typing in the library) |
+| <kbd>Ctrl</kbd>+<kbd>R</kbd> | Refresh |
+| <kbd>Ctrl</kbd>+<kbd>1</kbd> / <kbd>2</kbd> | Switch to Calendar / Library |
+| <kbd>Ctrl</kbd>+<kbd>Page Up</kbd> / <kbd>Page Down</kbd> | Move the calendar back / forward |
+| <kbd>Ctrl</kbd>+<kbd>Home</kbd> | Jump to today |
+| <kbd>Ctrl</kbd>+<kbd>,</kbd> | Preferences |
+| <kbd>Ctrl</kbd>+<kbd>Q</kbd> | Quit |

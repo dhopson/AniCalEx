@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="page" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f0ecf6"/>
+    </linearGradient>
+    <linearGradient id="band" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f66151"/>
+      <stop offset="1" stop-color="#e01b24"/>
+    </linearGradient>
+    <radialGradient id="iris" cx="0.5" cy="0.38" r="0.62">
+      <stop offset="0" stop-color="#dc8add"/>
+      <stop offset="0.55" stop-color="#9141ac"/>
+      <stop offset="1" stop-color="#3d1a5c"/>
+    </radialGradient>
+    <clipPath id="eye">
+      <path d="M30 78 C42 54 86 54 98 78 C86 98 42 98 30 78 Z"/>
+    </clipPath>
+  </defs>
+
+  <!-- base: the page's thickness, then the page -->
+  <rect x="14" y="20" width="100" height="98" rx="14" fill="#c0bfbc"/>
+  <rect x="14" y="16" width="100" height="98" rx="14" fill="url(#page)"/>
+  <!-- header band with binding rings -->
+  <path d="M28 16 H100 A14 14 0 0 1 114 30 V40 H14 V30 A14 14 0 0 1 28 16 Z" fill="url(#band)"/>
+  <rect x="36" y="8" width="8" height="18" rx="4" fill="#5e5c64"/>
+  <rect x="84" y="8" width="8" height="18" rx="4" fill="#5e5c64"/>
+
+  <!-- anime eye -->
+  <path d="M30 78 C42 54 86 54 98 78 C86 98 42 98 30 78 Z" fill="#ffffff"/>
+  <g clip-path="url(#eye)">
+    <ellipse cx="64" cy="77" rx="17" ry="21" fill="url(#iris)"/>
+    <ellipse cx="64" cy="79" rx="8" ry="10" fill="#241f31"/>
+    <ellipse cx="57" cy="68" rx="6" ry="7.5" fill="#ffffff"/>
+    <circle cx="71" cy="87" r="3" fill="#ffffff" opacity="0.85"/>
+  </g>
+  <!-- upper lid line with lashes, lower lid hint -->
+  <path d="M26 79 C40 50 88 50 102 79" fill="none" stroke="#241f31" stroke-width="5" stroke-linecap="round"/>
+  <path d="M95 66 L106 60 M99 72 L109 70" fill="none" stroke="#241f31" stroke-width="4" stroke-linecap="round"/>
+  <path d="M46 93 C56 99 72 99 82 93" fill="none" stroke="#241f31" stroke-width="2.5" stroke-linecap="round" opacity="0.6"/>
+  <!-- sparkle -->
+  <path d="M100 44 L102.5 50.5 L109 53 L102.5 55.5 L100 62 L97.5 55.5 L91 53 L97.5 50.5 Z" fill="#f6d32d"/>
+</svg>

@@ -21,6 +21,7 @@ PLAYBACK_EXECUTABLE = "playback.executable"
 PLAYBACK_MODE = "playback.mode"  # "sub" or "dub"
 PLAYBACK_QUALITY = "playback.quality"
 PLAYBACK_AUTO_MARK = "playback.auto_mark"  # mark watched at end/90% without asking
+NOTIFICATIONS_ENABLED = "notifications.enabled"
 
 # Sync-state keys
 LAST_REFRESH_RUN = "refresh.last_run"  # epoch seconds of the last successful refresh; no automatic refresh within 24h of it

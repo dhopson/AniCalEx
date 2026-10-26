@@ -4,11 +4,11 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anical"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Anime library and airing calendar for GNOME, with ani-cli playback"
 readme = "README.md"
 requires-python = ">=3.12"
-license = "GPL-3.0-or-later"
+license = "MIT"
 # PyGObject, GTK 4 and libadwaita come from the distribution (see README).
 dependencies = []
 
@@ -24,6 +24,7 @@ include = ["anical*"]
 [tool.setuptools.package-data]
 "anical.db" = ["migrations/*.sql"]
 "anical.playback" = ["data/*"]
+"anical" = ["data/icons/hicolor/*/apps/*.svg"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

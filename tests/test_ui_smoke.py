@@ -202,11 +202,11 @@ def test_offline_sync_keeps_data_and_shows_banner(window, controller, settings, 
 
 
 @pytest.mark.parametrize("mode", [None, "username", "account"])
-def test_preferences_build_in_every_mode(controller, settings, display, playback, mode):
+def test_preferences_build_in_every_mode(controller, settings, display, playback, repo, mode):
     settings.set(MAL_CLIENT_ID, "cid")
     settings.set(MAL_MODE, mode)
     settings.set(MAL_USERNAME, "someone" if mode else None)
-    dialog = PreferencesDialog(controller, display, playback)
+    dialog = PreferencesDialog(controller, display, playback, repo.connection, Path("/tmp"), lambda: None)
     controller.emit("changed")  # rebuild path
     dialog.force_close()
 
@@ -257,9 +257,9 @@ def test_calendar_modes_render(window, repo, mode, compact):
 def test_calendar_navigation_and_today(window):
     calendar = window.calendar_view
     first = calendar._title.get_label()
-    calendar._navigate(1)
+    calendar.navigate(1)
     assert calendar._title.get_label() != first
-    calendar._navigate(0)
+    calendar.navigate(0)
     assert calendar._title.get_label() == first
 
 
@@ -458,3 +458,30 @@ def test_ani_cli_history_hint(window, repo, private_ani_cli_history):
     texts = widget_texts(page)
     assert "Last launched in ani-cli: Episode 5" in texts and "Mark 1–4 Watched" in texts
     assert repo.episodes(anime_id).watched_count == 0  # only a hint until the user clicks
+
+
+def test_long_shows_show_a_window_around_progress(window, repo):
+    anime_id = repo.create_anime(AnimeDraft(title="Very Long", total_episodes=300))
+    repo.set_watch_state([e.id for e in repo.episodes(anime_id).episodes[:200]], WatchState.WATCHED)
+    page = ShowPage(window, anime_id)
+    texts = widget_texts(page)
+    assert "Episode 201" in texts and "Episode 191" in texts and "Episode 1" not in texts
+    assert "Show 190 Earlier Episodes" in texts and "Show 50 Later Episodes" in texts
+    assert "200 of 300 watched" in texts  # counts still cover everything
+    page._expand_episodes()
+    texts = widget_texts(page)
+    assert "Episode 1" in texts and "Episode 300" in texts
+
+
+def test_keyboard_actions_and_shortcuts_dialog(window):
+    from anical.app import shortcuts_dialog
+
+    first = window.calendar_view._title.get_label()
+    window.activate_action("win.show-library", None)
+    assert window._stack.get_visible_child_name() == "library"
+    window.activate_action("win.calendar-next", None)
+    assert window._stack.get_visible_child_name() == "calendar"
+    assert window.calendar_view._title.get_label() != first
+    window.activate_action("win.calendar-today", None)
+    assert window.calendar_view._title.get_label() == first
+    shortcuts_dialog()  # builds without errors

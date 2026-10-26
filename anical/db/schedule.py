@@ -271,6 +271,25 @@ class ScheduleRepository:
         )
         return [_entry(r) for r in rows]
 
+    def unannounced_entries(self, start: int, end: int) -> list[CalendarEntry]:
+        """Calendar entries in [start, end) that haven't had an "available" notification."""
+        rows = self._conn.execute(
+            f"""SELECT {_ENTRY_COLUMNS} {_ENTRY_JOINS}
+                WHERE x.airs_at >= ? AND x.airs_at < ? AND a.in_library = 1
+                  AND NOT EXISTS (SELECT 1 FROM notification_sent n
+                                  WHERE n.episode_id = e.id AND n.kind = 'available')
+                ORDER BY x.airs_at""",
+            (start, end),
+        )
+        return [_entry(r) for r in rows]
+
+    def mark_announced(self, episode_ids: Iterable[int], now: int) -> None:
+        with transaction(self._conn):
+            self._conn.executemany(
+                "INSERT OR IGNORE INTO notification_sent (episode_id, kind, sent_at) VALUES (?, 'available', ?)",
+                [(episode_id, now) for episode_id in episode_ids],
+            )
+
     def aired_unwatched(self, now: int) -> list[CalendarEntry]:
         rows = self._conn.execute(
             f"""SELECT {_ENTRY_COLUMNS} {_ENTRY_JOINS}

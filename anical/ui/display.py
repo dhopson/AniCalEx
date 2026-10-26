@@ -87,6 +87,9 @@ class DisplaySettings(GObject.Object):
     def use_24h(self) -> bool:
         return self._clock_format is None or self._clock_format.get_string("clock-format") != "12h"
 
+    def get(self, key: str):
+        return self._settings.get(key)
+
     def set(self, key: str, value) -> None:
         self._settings.set(key, value)
         self.emit("changed")

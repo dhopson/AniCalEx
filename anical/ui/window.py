@@ -114,6 +114,11 @@ class MainWindow(Adw.ApplicationWindow):
             ("add-anime", self._on_add_anime),
             ("search", self._on_search),
             ("sync", self._on_sync),
+            ("calendar-previous", lambda *_: self._calendar_step(-1)),
+            ("calendar-next", lambda *_: self._calendar_step(1)),
+            ("calendar-today", lambda *_: self._calendar_step(0)),
+            ("show-calendar", lambda *_: self._show_view("calendar")),
+            ("show-library", lambda *_: self._show_view("library")),
         ):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", callback)
@@ -123,6 +128,11 @@ class MainWindow(Adw.ApplicationWindow):
 
     def show_anime(self, anime_id: int) -> None:
         self._nav.push(ShowPage(self, anime_id))
+
+    def show_unwatched(self) -> None:
+        self._nav.pop_to_page(self._main_page)
+        self._stack.set_visible_child_name("calendar")
+        self.calendar_view.show_mode("unwatched")
 
     def play_episode(self, episode_id: int) -> None:
         if problem := self.playback.play(episode_id):
@@ -216,6 +226,14 @@ class MainWindow(Adw.ApplicationWindow):
     def _on_sync(self, *_):
         self.sync_controller.sync()
 
+    def _show_view(self, name: str) -> None:
+        self._nav.pop_to_page(self._main_page)
+        self._stack.set_visible_child_name(name)
+
+    def _calendar_step(self, steps: int) -> None:
+        self._show_view("calendar")
+        self.calendar_view.navigate(steps)
+
     def _on_search(self, *_):
         self._nav.pop_to_page(self._main_page)
         self._stack.set_visible_child_name("library")
@@ -229,6 +247,7 @@ def _main_menu() -> Gio.Menu:
     menu.append_section(None, actions)
     app_items = Gio.Menu()
     app_items.append("Preferences", "app.preferences")
+    app_items.append("Keyboard Shortcuts", "app.shortcuts")
     app_items.append("About AniCal", "app.about")
     menu.append_section(None, app_items)
     return menu

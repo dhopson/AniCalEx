@@ -15,9 +15,13 @@ class TokenStoreError(Exception):
     pass
 
 
-_SCHEMA = Secret.Schema.new(
-    f"{APP_ID}.OAuthToken", Secret.SchemaFlags.NONE, {"service": Secret.SchemaAttributeType.STRING}
-)
+def _schema(name: str) -> Secret.Schema:
+    return Secret.Schema.new(name, Secret.SchemaFlags.NONE, {"service": Secret.SchemaAttributeType.STRING})
+
+
+_SCHEMA = _schema(f"{APP_ID}.OAuthToken")
+# Logins saved before the app ID was renamed (io.github.anical → io.github.dhopson).
+_LEGACY_SCHEMA = _schema("io.github.anical.AniCal.OAuthToken")
 _ATTRIBUTES = {"service": "myanimelist"}
 
 
@@ -27,6 +31,8 @@ class KeyringTokenStore:
     def load(self) -> Token | None:
         try:
             secret = Secret.password_lookup_sync(_SCHEMA, _ATTRIBUTES, None)
+            if not secret:
+                secret = self._migrate_legacy()
         except GLib.Error as e:
             raise TokenStoreError(f"Couldn’t read the keyring: {e.message}") from e
         if not secret:
@@ -35,6 +41,16 @@ class KeyringTokenStore:
             return Token.from_json(secret)
         except (ValueError, KeyError, TypeError):
             return None  # unreadable entry: treat as logged out
+
+    @staticmethod
+    def _migrate_legacy() -> str | None:
+        secret = Secret.password_lookup_sync(_LEGACY_SCHEMA, _ATTRIBUTES, None)
+        if secret:
+            Secret.password_store_sync(
+                _SCHEMA, _ATTRIBUTES, Secret.COLLECTION_DEFAULT, "AniCal MyAnimeList login", secret, None
+            )
+            Secret.password_clear_sync(_LEGACY_SCHEMA, _ATTRIBUTES, None)
+        return secret
 
     def save(self, token: Token) -> None:
         try:

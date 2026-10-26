@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.dhopson.AniCal</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>AniCal</name>
+  <summary>Anime library and airing calendar</summary>
+  <developer id="io.github.dhopson">
+    <name>AniCal contributors</name>
+  </developer>
+  <description>
+    <p>
+      AniCal keeps a local library of the anime you follow and shows when new
+      episodes air, in day, week and month views.
+    </p>
+    <ul>
+      <li>Imports your MyAnimeList list (read-only) or works entirely offline with shows you add yourself</li>
+      <li>Exact airing times from AniList, with clearly marked estimates when only a weekly slot is known</li>
+      <li>Plays episodes through your existing ani-cli installation and marks them watched when you finish</li>
+      <li>Notifies you when a new episode is probably available</li>
+    </ul>
+    <p>Your library and watch history stay on your computer.</p>
+  </description>
+  <launchable type="desktop-id">io.github.dhopson.AniCal.desktop</launchable>
+  <provides>
+    <binary>anical</binary>
+  </provides>
+  <requires>
+    <display_length compare="ge">360</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <url type="homepage">https://github.com/dhopson/AniCal</url>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-10-26">
+      <description>
+        <p>First release: library, MyAnimeList import, airing calendar, ani-cli playback and notifications.</p>
+      </description>
+    </release>
+  </releases>
+</component>
