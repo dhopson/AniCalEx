@@ -5,10 +5,23 @@ import datetime
 from gi.repository import Adw, Gtk
 
 from anical.auth.mal_oauth import REDIRECT_URI, OAuthError
-from anical.db.settings import AVAILABILITY_LAG_HOURS, DISPLAY_ENGLISH_TITLES, DISPLAY_TIMEZONE, DISPLAY_WEEK_START
+from anical.db.settings import (
+    AVAILABILITY_LAG_HOURS,
+    DISPLAY_ENGLISH_TITLES,
+    DISPLAY_TIMEZONE,
+    DISPLAY_WEEK_START,
+    PLAYBACK_AUTO_MARK,
+    PLAYBACK_EXECUTABLE,
+    PLAYBACK_MODE,
+    PLAYBACK_QUALITY,
+)
+from anical.domain.playback import MODES, QUALITIES
 from anical.sync.mal_sync import ACCOUNT, USERNAME
 from anical.ui.display import DisplaySettings, available_timezones, system_timezone_name
+from anical.ui.playback_controller import PlaybackController
 from anical.ui.sync_controller import SyncController
+
+_QUALITY_LABELS = {"best": "Best Available", "worst": "Lowest"}
 
 
 def format_time(epoch: int | None) -> str:
@@ -18,12 +31,14 @@ def format_time(epoch: int | None) -> str:
 
 
 class PreferencesDialog(Adw.PreferencesDialog):
-    def __init__(self, controller: SyncController, display: DisplaySettings):
+    def __init__(self, controller: SyncController, display: DisplaySettings, playback: PlaybackController):
         super().__init__(title="Preferences", search_enabled=False)
         self._controller = controller
         self._display = display
+        self._playback = playback
         self._login_dialog: Adw.AlertDialog | None = None
         self.add(self._general_page())
+        self.add(self._playback_page())
 
         self._page = Adw.PreferencesPage(title="MyAnimeList", icon_name="system-users-symbolic")
         self.add(self._page)
@@ -67,6 +82,59 @@ class PreferencesDialog(Adw.PreferencesDialog):
         lag.connect("notify::value", lambda row, _p: display.set(AVAILABILITY_LAG_HOURS, row.get_value()))
         group.add(lag)
         page.add(group)
+        return page
+
+    def _playback_page(self) -> Adw.PreferencesPage:
+        playback = self._playback
+        config = playback.config
+        page = Adw.PreferencesPage(title="Playback", icon_name="media-playback-start-symbolic")
+
+        program = Adw.PreferencesGroup(title="ani-cli")
+        command = Adw.EntryRow(title="ani-cli Command or Path", show_apply_button=True, text=config.executable)
+        status = Adw.ActionRow(use_markup=False)
+
+        def update_status() -> None:
+            found = playback.resolve_executable()
+            status.set_title("Found" if found else "Not Found")
+            status.set_subtitle(found or "Install ani-cli, or enter the full path to it")
+
+        def apply(row: Adw.EntryRow) -> None:
+            text = row.get_text().strip()
+            playback.set_setting(PLAYBACK_EXECUTABLE, None if text in ("", "ani-cli") else text)
+            update_status()
+
+        command.connect("apply", apply)
+        update_status()
+        program.add(command)
+        program.add(status)
+        page.add(program)
+
+        options = Adw.PreferencesGroup(
+            title="Episodes",
+            description="Watch progress is tracked with mpv, ani-cli’s default player. With other players you’ll be asked.",
+        )
+        mode = Adw.ComboRow(title="Audio", model=Gtk.StringList.new(["Subtitled", "Dubbed"]))
+        mode.set_selected(MODES.index(config.mode))
+        mode.connect("notify::selected", lambda row, _p: playback.set_setting(PLAYBACK_MODE, MODES[row.get_selected()]))
+        options.add(mode)
+
+        quality = Adw.ComboRow(
+            title="Quality", model=Gtk.StringList.new([_QUALITY_LABELS.get(q, q) for q in QUALITIES])
+        )
+        quality.set_selected(QUALITIES.index(config.quality))
+        quality.connect(
+            "notify::selected", lambda row, _p: playback.set_setting(PLAYBACK_QUALITY, QUALITIES[row.get_selected()])
+        )
+        options.add(quality)
+
+        auto_mark = Adw.SwitchRow(
+            title="Mark Watched Automatically",
+            subtitle="When an episode plays to the end or past 90%. Otherwise you’re asked.",
+            active=config.auto_mark,
+        )
+        auto_mark.connect("notify::active", lambda row, _p: playback.set_setting(PLAYBACK_AUTO_MARK, row.get_active()))
+        options.add(auto_mark)
+        page.add(options)
         return page
 
     def _rebuild(self) -> None:

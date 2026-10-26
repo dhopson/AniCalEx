@@ -16,12 +16,14 @@ from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
 from anical import APP_ID, __version__  # noqa: E402
 from anical.auth.secrets import KeyringTokenStore  # noqa: E402
 from anical.db.database import DatabaseError, open_database  # noqa: E402
+from anical.db.playback import PlaybackRepository  # noqa: E402
 from anical.db.repository import LibraryRepository  # noqa: E402
 from anical.db.settings import SettingsRepository  # noqa: E402
 from anical.net.http import UrllibClient  # noqa: E402
 from anical.sync.mal_sync import MalSyncService  # noqa: E402
 from anical.ui.style import install_css  # noqa: E402
 from anical.ui.display import DisplaySettings  # noqa: E402
+from anical.ui.playback_controller import PlaybackController  # noqa: E402
 from anical.ui.preferences import PreferencesDialog  # noqa: E402
 from anical.ui.sync_controller import SyncController  # noqa: E402
 from anical.ui.window import DatabaseErrorWindow, MainWindow  # noqa: E402
@@ -31,6 +33,12 @@ def data_dir() -> Path:
     """$ANICAL_DATA_DIR (for development and tests), else $XDG_DATA_HOME/anical."""
     override = os.environ.get("ANICAL_DATA_DIR")
     return Path(override) if override else Path(GLib.get_user_data_dir()) / "anical"
+
+
+def runtime_dir() -> Path:
+    """Per-session scratch files (picker, player script, playback sessions)."""
+    override = os.environ.get("ANICAL_DATA_DIR")
+    return Path(override) / "run" if override else Path(GLib.get_user_runtime_dir()) / "anical"
 
 
 def cache_dir() -> Path:
@@ -45,6 +53,7 @@ class AniCalApplication(Adw.Application):
         self._conn = None
         self._sync: SyncController | None = None
         self._display: DisplaySettings | None = None
+        self._playback: PlaybackController | None = None
 
     def do_startup(self):
         Adw.Application.do_startup(self)
@@ -79,8 +88,13 @@ class AniCalApplication(Adw.Application):
             repository, settings, MalSyncService(http, KeyringTokenStore()), http, cache_dir() / "covers"
         )
         self._display = DisplaySettings(settings)
+        self._playback = PlaybackController(repository, PlaybackRepository(self._conn), settings, runtime_dir())
         MainWindow(
-            application=self, repository=repository, sync_controller=self._sync, display=self._display
+            application=self,
+            repository=repository,
+            sync_controller=self._sync,
+            display=self._display,
+            playback=self._playback,
         ).present()
         self._sync.start()  # local data is already on screen; refresh in the background if due
 
@@ -93,7 +107,7 @@ class AniCalApplication(Adw.Application):
 
     def _on_preferences(self, *_):
         if self._sync is not None:
-            PreferencesDialog(self._sync, self._display).present(self.get_active_window())
+            PreferencesDialog(self._sync, self._display, self._playback).present(self.get_active_window())
 
     def _on_about(self, *_):
         Adw.AboutDialog(

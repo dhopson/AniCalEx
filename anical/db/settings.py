@@ -17,6 +17,10 @@ DISPLAY_TIMEZONE = "display.timezone"  # IANA name; unset = system time zone
 DISPLAY_WEEK_START = "display.week_start"  # 0 = Monday, 6 = Sunday
 AVAILABILITY_LAG_HOURS = "schedule.availability_lag_hours"
 DISPLAY_ENGLISH_TITLES = "display.english_titles"  # calendar shows English titles when known
+PLAYBACK_EXECUTABLE = "playback.executable"
+PLAYBACK_MODE = "playback.mode"  # "sub" or "dub"
+PLAYBACK_QUALITY = "playback.quality"
+PLAYBACK_AUTO_MARK = "playback.auto_mark"  # mark watched at end/90% without asking
 
 # Sync-state keys
 LAST_REFRESH_RUN = "refresh.last_run"  # epoch seconds of the last successful refresh; no automatic refresh within 24h of it

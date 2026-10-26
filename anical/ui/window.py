@@ -4,12 +4,18 @@ from pathlib import Path
 
 from gi.repository import Adw, Gio, GObject, Gtk
 
+from anical.db.playback import PlaybackRepository
 from anical.db.repository import LibraryRepository
+from anical.domain.models import WatchState
+from anical.domain.playback import Outcome
 from anical.db.schedule import ScheduleRepository
 from anical.ui.calendar_view import CalendarView
 from anical.ui.display import DisplaySettings
 from anical.ui.editor import AnimeEditorDialog
 from anical.ui.library_view import LibraryView
+from anical.ui.pick_dialog import PickDialog
+from anical.ui.playback_controller import PlaybackController, PlaybackReport
+from anical.ui.playback_dialog import PlaybackSettingsDialog
 from anical.ui.show_page import ShowPage
 from anical.ui.sync_controller import RefreshResult, SyncController
 
@@ -39,13 +45,16 @@ class MainWindow(Adw.ApplicationWindow):
         repository: LibraryRepository,
         sync_controller: SyncController,
         display: DisplaySettings,
+        playback: PlaybackController,
     ):
         super().__init__(application=application, title="AniCal", default_width=1100, default_height=760)
         self.set_size_request(360, 294)
         self.repository = repository
         self.schedule = ScheduleRepository(repository.connection)
+        self.playback_repository = PlaybackRepository(repository.connection)
         self.sync_controller = sync_controller
         self.display = display
+        self.playback = playback
 
         self._stack = Adw.ViewStack()
         self.calendar_view = CalendarView(self)
@@ -94,7 +103,12 @@ class MainWindow(Adw.ApplicationWindow):
             sync_controller.connect("library-changed", lambda *_: self.library_changed()),
             sync_controller.connect("changed", lambda *_: self._update_sync_state()),
         ]
+        playback_handlers = [
+            playback.connect("pick-requested", lambda _p, request: PickDialog(request).present(self)),
+            playback.connect("finished", self._on_playback_finished),
+        ]
         self.connect("destroy", lambda *_: [sync_controller.disconnect(h) for h in handlers])
+        self.connect("destroy", lambda *_: [playback.disconnect(h) for h in playback_handlers])
 
         for name, callback in (
             ("add-anime", self._on_add_anime),
@@ -109,6 +123,51 @@ class MainWindow(Adw.ApplicationWindow):
 
     def show_anime(self, anime_id: int) -> None:
         self._nav.push(ShowPage(self, anime_id))
+
+    def play_episode(self, episode_id: int) -> None:
+        if problem := self.playback.play(episode_id):
+            self.toast(problem)
+        else:
+            self.toast(f"Opening {self.playback.playing} in ani-cli…")
+
+    def open_playback_settings(self, anime_id: int) -> None:
+        anime = self.repository.get_anime(anime_id)
+        mapping = self.playback.mapping_for(anime.id, anime.title)
+        PlaybackSettingsDialog(self.playback_repository, anime, mapping, on_saved=self.library_changed).present(self)
+
+    def _on_playback_finished(self, _controller, report: PlaybackReport) -> None:
+        result = report.result
+
+        def mark_watched() -> None:
+            self.playback.mark_watched(report.episode_id)
+            self.library_changed()
+
+        def undo() -> None:
+            self.repository.set_watch_state([report.episode_id], WatchState.UNWATCHED)
+            self.library_changed()
+
+        match result.outcome:
+            case Outcome.WATCHED if report.marked:
+                self.toast(f"Marked {report.label} watched", "Undo", undo)
+            case Outcome.WATCHED:
+                self.toast(f"Finished {report.label}", "Mark Watched", mark_watched)
+            case Outcome.PARTIAL:
+                self.toast(f"Stopped {report.label} at {result.percent or 0:.0f}%", "Mark Watched", mark_watched)
+            case Outcome.UNKNOWN:
+                self.toast(f"Did you finish {report.label}?", "Mark Watched", mark_watched)
+            case Outcome.EPISODE_NOT_FOUND:
+                self.toast(f"{report.label} isn’t available in ani-cli yet")
+            case Outcome.SHOW_NOT_FOUND:
+                self.toast(
+                    f"ani-cli found nothing for “{report.query}”",
+                    "Change Search…",
+                    lambda: self.open_playback_settings(report.anime_id),
+                )
+            case Outcome.FAILED:
+                self.toast(f"Playback failed: {result.message}")
+            case Outcome.CANCELLED:
+                pass
+        self.library_changed()
 
     def library_changed(self) -> None:
         """Redraw everything that shows library data."""

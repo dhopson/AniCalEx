@@ -17,6 +17,15 @@ class FakeClock:
         self.now += seconds
 
 
+@pytest.fixture(autouse=True)
+def private_ani_cli_history(tmp_path, monkeypatch):
+    """Never read the real ani-cli history from tests."""
+    directory = tmp_path / "ani-cli-history"
+    directory.mkdir()
+    monkeypatch.setenv("ANI_CLI_HIST_DIR", str(directory))
+    return directory / "ani-hsts"
+
+
 @pytest.fixture
 def conn():
     conn = connect(":memory:")

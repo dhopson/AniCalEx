@@ -1,5 +1,7 @@
 """Builds the real widgets against a temporary library. Skipped without a display."""
 
+from pathlib import Path
+
 import pytest
 
 gi = pytest.importorskip("gi")
@@ -12,6 +14,9 @@ if not Gtk.init_check():
 Adw.init()
 
 from anical.db.schedule import ScheduleRepository  # noqa: E402
+from anical.db.playback import PlaybackRepository  # noqa: E402
+from anical.domain.playback import PlaybackMapping  # noqa: E402
+from anical.db.settings import PLAYBACK_AUTO_MARK, PLAYBACK_EXECUTABLE  # noqa: E402
 from anical.db.settings import DISPLAY_ENGLISH_TITLES, DISPLAY_TIMEZONE, MAL_CLIENT_ID, MAL_MODE, MAL_USERNAME, SettingsRepository  # noqa: E402
 from anical.domain.models import AiringStatus, AnimeDraft, WatchState  # noqa: E402
 from anical.net.http import NetworkError, Response  # noqa: E402
@@ -21,6 +26,7 @@ from anical.sync.schedule_sync import fetch_schedules  # noqa: E402
 from anical.ui.air_dates import AirDatesDialog  # noqa: E402
 from anical.ui.display import DisplaySettings  # noqa: E402
 from anical.ui.editor import AnimeEditorDialog  # noqa: E402
+from anical.ui.playback_controller import PlaybackController  # noqa: E402
 from anical.ui.preferences import PreferencesDialog  # noqa: E402
 from anical.ui.show_page import ShowPage  # noqa: E402
 from anical.ui.sync_controller import SyncController  # noqa: E402
@@ -69,8 +75,16 @@ def display(settings):
 
 
 @pytest.fixture
-def window(repo, controller, display):
-    win = MainWindow(application=None, repository=repo, sync_controller=controller, display=display)
+def playback(repo, settings, conn, tmp_path):
+    settings.set(PLAYBACK_EXECUTABLE, str(Path(__file__).parent / "fake_ani_cli.py"))
+    return PlaybackController(repo, PlaybackRepository(conn), settings, tmp_path / "run")
+
+
+@pytest.fixture
+def window(repo, controller, display, playback):
+    win = MainWindow(
+        application=None, repository=repo, sync_controller=controller, display=display, playback=playback
+    )
     yield win
     win.destroy()
     drain()
@@ -188,11 +202,11 @@ def test_offline_sync_keeps_data_and_shows_banner(window, controller, settings, 
 
 
 @pytest.mark.parametrize("mode", [None, "username", "account"])
-def test_preferences_build_in_every_mode(controller, settings, display, mode):
+def test_preferences_build_in_every_mode(controller, settings, display, playback, mode):
     settings.set(MAL_CLIENT_ID, "cid")
     settings.set(MAL_MODE, mode)
     settings.set(MAL_USERNAME, "someone" if mode else None)
-    dialog = PreferencesDialog(controller, display)
+    dialog = PreferencesDialog(controller, display, playback)
     controller.emit("changed")  # rebuild path
     dialog.force_close()
 
@@ -327,3 +341,120 @@ def test_calendar_can_use_english_titles(window, repo, display):
     texts = widget_texts(window.calendar_view)
     assert "The Apothecary Diaries" in texts and "Kusuriya no Hitorigoto" not in texts
     assert "Only Romaji" in texts  # falls back when there's no English title
+
+
+# Playback (fake ani-cli, real Gio.Subprocess)
+
+
+def play_and_wait(playback, episode_id):
+    reports = []
+    handler = playback.connect("finished", lambda _p, report: reports.append(report))
+    assert playback.play(episode_id) is None
+    wait_until(lambda: reports, timeout=15)
+    playback.disconnect(handler)
+    return reports[0]
+
+
+def first_episode(repo, title="Show", **draft):
+    anime_id = repo.create_anime(AnimeDraft(title=title, total_episodes=3, **draft))
+    return anime_id, repo.episodes(anime_id).episodes[0]
+
+
+def test_playing_to_the_end_marks_watched(playback, repo, conn, monkeypatch):
+    monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof","percent":96.5,"position":1380,"duration":1420}')
+    anime_id, episode = first_episode(repo)
+    report = play_and_wait(playback, episode.id)
+    assert report.result.outcome.value == "watched" and report.marked
+    assert repo.watch_state(episode.id) is WatchState.WATCHED
+    source, = conn.execute("SELECT source FROM watch_event WHERE episode_id = ?", (episode.id,)).fetchone()
+    assert source == "playback"
+    assert conn.execute("SELECT end_reason FROM playback_session").fetchone()[0] == "eof"
+    assert not list((Path(playback._runtime_dir)).glob("session-*"))  # cleaned up
+
+
+def test_stopping_early_does_not_mark_watched(playback, repo, monkeypatch):
+    monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"quit","percent":42,"position":600,"duration":1420}')
+    _, episode = first_episode(repo)
+    report = play_and_wait(playback, episode.id)
+    assert report.result.outcome.value == "partial" and round(report.result.percent) == 42
+    assert repo.watch_state(episode.id) is WatchState.UNWATCHED
+
+
+def test_auto_mark_can_be_turned_off(playback, repo, settings, monkeypatch):
+    settings.set(PLAYBACK_AUTO_MARK, False)
+    monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof","percent":99}')
+    _, episode = first_episode(repo)
+    report = play_and_wait(playback, episode.id)
+    assert report.result.outcome.value == "watched" and not report.marked
+    assert repo.watch_state(episode.id) is WatchState.UNWATCHED
+
+
+def test_ambiguous_search_asks_once_then_remembers(playback, repo, monkeypatch):
+    monkeypatch.setenv("FAKE_RESULTS", "Show|Show Season 2")
+    monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"quit","percent":5}')
+    anime_id, episode = first_episode(repo, title="Show S2")
+    requests = []
+
+    def answer(_p, request):
+        requests.append(request)
+        request.respond(next(i for i, t in request.choices if t == "Show Season 2"))
+
+    handler = playback.connect("pick-requested", answer)
+    play_and_wait(playback, episode.id)
+    assert len(requests) == 1 and requests[0].query == "Show S2"
+    assert PlaybackRepository(repo.connection).mapping(anime_id).result_title == "Show Season 2"
+
+    play_and_wait(playback, episode.id)
+    assert len(requests) == 1  # second time the picker chose by itself
+    playback.disconnect(handler)
+
+
+def test_cancelled_pick_and_unreleased_episode(playback, repo, monkeypatch):
+    monkeypatch.setenv("FAKE_RESULTS", "A|B")
+    handler = playback.connect("pick-requested", lambda _p, request: request.respond(None))
+    _, episode = first_episode(repo)
+    assert play_and_wait(playback, episode.id).result.outcome.value == "cancelled"
+    playback.disconnect(handler)
+
+    monkeypatch.delenv("FAKE_RESULTS")
+    monkeypatch.setenv("FAKE_EPISODES", "0")
+    assert play_and_wait(playback, episode.id).result.outcome.value == "episode_not_found"
+
+
+def test_one_playback_at_a_time_and_missing_ani_cli(playback, repo, settings, monkeypatch):
+    monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof"}')
+    _, episode = first_episode(repo)
+    assert playback.play(episode.id) is None
+    assert playback.play(episode.id).startswith("Already playing")
+    wait_until(lambda: playback.playing is None, timeout=15)
+
+    settings.set(PLAYBACK_EXECUTABLE, "/nonexistent/ani-cli")
+    assert "wasn’t found" in playback.play(episode.id)
+
+
+def test_play_buttons_on_show_page_and_calendar(window, repo, monkeypatch):
+    import time
+
+    monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof"}')
+    anime_id = repo.create_anime(AnimeDraft(title="Airing", airing_status=AiringStatus.AIRING, total_episodes=2))
+    now = int(time.time())
+    window.schedule.set_user_airings(anime_id, [(1, now - 3600), (2, now + 86400)])
+    page = ShowPage(window, anime_id)
+    texts = widget_texts(page)
+    assert "Play Episode 1" in texts  # the next aired, unwatched episode
+    window.play_episode(repo.episodes(anime_id).episodes[0].id)
+    wait_until(lambda: window.playback.playing is None, timeout=15)
+    drain()
+    assert repo.episodes(anime_id).watched_count == 1
+    assert "Play Episode 1" not in widget_texts(ShowPage(window, anime_id))  # episode 2 hasn't aired
+
+
+def test_ani_cli_history_hint(window, repo, private_ani_cli_history):
+    anime_id = repo.create_anime(AnimeDraft(title="Overgeared", total_episodes=12))
+    assert "ani-cli" not in widget_texts(ShowPage(window, anime_id))  # no chosen result, so no match is claimed
+    PlaybackRepository(repo.connection).save_mapping(PlaybackMapping(anime_id, "Overgeared", "Overgeared"))
+    private_ani_cli_history.write_text("5\tovergeared-10469\tOvergeared\n")
+    page = ShowPage(window, anime_id)
+    texts = widget_texts(page)
+    assert "Last launched in ani-cli: Episode 5" in texts and "Mark 1–4 Watched" in texts
+    assert repo.episodes(anime_id).watched_count == 0  # only a hint until the user clicks

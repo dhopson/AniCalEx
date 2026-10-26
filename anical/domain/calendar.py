@@ -51,6 +51,7 @@ class CalendarEntry:
     cover_path: str | None = None
     episode_title: str | None = None
     title_en: str | None = None
+    confirmed_available: bool = False  # it has been streamed successfully
 
     def display_title(self, prefer_english: bool) -> str:
         return self.title_en if prefer_english and self.title_en else self.title
@@ -66,7 +67,7 @@ class CalendarEntry:
             return EntryStatus.WATCHED
         if self.airs_at > now:
             return EntryStatus.UPCOMING
-        if self.airs_at + availability_lag_s > now:
+        if self.airs_at + availability_lag_s > now and not self.confirmed_available:
             return EntryStatus.JUST_AIRED
         return EntryStatus.AVAILABLE
 

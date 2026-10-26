@@ -75,7 +75,9 @@ _ENTRY_COLUMNS = """
     a.title, a.title_en, a.cover_path, x.airs_at, x.precision, x.source, w.state,
     EXISTS (SELECT 1 FROM airing_change c
             WHERE c.episode_id = e.id AND c.source = x.source
-              AND c.new_airs_at = x.airs_at AND c.new_airs_at > c.old_airs_at) AS delayed
+              AND c.new_airs_at = x.airs_at AND c.new_airs_at > c.old_airs_at) AS delayed,
+    EXISTS (SELECT 1 FROM playback_session p
+            WHERE p.episode_id = e.id AND (p.percent > 0 OR p.end_reason IN ('eof', 'quit', 'unknown'))) AS streamed
 """
 _ENTRY_JOINS = """
     FROM episode_effective_airing x
@@ -99,6 +101,7 @@ def _entry(row: sqlite3.Row) -> CalendarEntry:
         cover_path=row["cover_path"],
         episode_title=row["episode_title"],
         title_en=row["title_en"],
+        confirmed_available=bool(row["streamed"]),
     )
 
 

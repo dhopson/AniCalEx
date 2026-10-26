@@ -23,6 +23,7 @@ include = ["anical*"]
 
 [tool.setuptools.package-data]
 "anical.db" = ["migrations/*.sql"]
+"anical.playback" = ["data/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

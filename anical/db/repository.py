@@ -260,6 +260,16 @@ class LibraryRepository:
             ]
         )
 
+    def episode(self, episode_id: int) -> Episode:
+        row = self._conn.execute(
+            """SELECT e.id, e.anime_id, e.number, e.kind, e.title, s.state
+               FROM episode e JOIN episode_watch_state s ON s.episode_id = e.id WHERE e.id = ?""",
+            (episode_id,),
+        ).fetchone()
+        if row is None:
+            raise KeyError(episode_id)
+        return Episode(row["id"], row["anime_id"], row["number"], EpisodeKind(row["kind"]), row["title"], WatchState(row["state"]))
+
     def watch_state(self, episode_id: int) -> WatchState:
         row = self._conn.execute("SELECT state FROM episode_watch_state WHERE episode_id = ?", (episode_id,)).fetchone()
         if row is None:

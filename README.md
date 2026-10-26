@@ -1,8 +1,8 @@
 # AniCal
 
-AniCal is a GNOME desktop app for tracking anime. It keeps a local library of shows and which episodes you've watched, imports your MyAnimeList list, and shows when new episodes air in a calendar. A later phase adds episode playback through [`ani-cli`](https://github.com/pystardust/ani-cli).
+AniCal is a GNOME desktop app for tracking anime. It keeps a local library of shows and which episodes you've watched, imports your MyAnimeList list, shows when new episodes air in a calendar, and plays episodes through your existing [`ani-cli`](https://github.com/pystardust/ani-cli) installation.
 
-**Status: Phase 3, airing schedules and calendar.**
+**Status: Phase 4, playback through ani-cli.**
 
 - **Local library.** You can add, edit and delete shows by hand. Episodes can be marked watched one at a time or all at once, with undo. The library can be searched, filtered and sorted. All of this works offline, with no account.
 - **MyAnimeList import.** You can log in through your browser (OAuth with PKCE), or import a public list by username. Imports run when the app starts if the last successful sync was more than 24 hours ago, then once a day while the app runs, and on demand with <kbd>Ctrl</kbd>+<kbd>R</kbd>.
@@ -21,6 +21,15 @@ AniCal is a GNOME desktop app for tracking anime. It keeps a local library of sh
   - Shows that are airing but have no known date are listed rather than placed on a guessed date.
   - Times are stored in UTC and shown in your chosen time zone (default: the system's), with correct DST handling.
   - Optionally, the calendar can use English titles where MAL has them (Preferences → Use English Titles).
+- **Playback.** Play buttons on the show page and in the calendar run `ani-cli` for that exact episode.
+  - The show page also has a "Play Episode N" button for the next unwatched episode that has aired.
+  - **Finding the show:** if ani-cli's search finds several shows, AniCal asks which one is right and remembers the answer. Per show, you can change the search text, forget the chosen match, set an episode offset for differently numbered seasons, or choose sub or dub (show menu → Playback Settings…).
+  - **Watched tracking:** a small mpv script reports how far playback got. If you play to the end or past 90%, the episode is marked watched, with Undo. If you stop earlier, AniCal asks.
+    - Launching an episode never marks it watched.
+    - With players other than mpv, progress is unknown, so AniCal asks.
+    - Automatic marking can be turned off in Preferences → Playback.
+  - **ani-cli's history:** shown as a hint ("Last launched: Episode 5"), because it records what was started, not what was finished. It is never applied automatically. AniCal never writes to it.
+  - **Safety:** ani-cli runs without a shell, with the title as a single argument, and only one playback runs at a time. Clear messages cover a missing ani-cli, an episode that isn't released yet, a search that finds nothing (with a button to change the search), and failures.
 
 ### Connecting MyAnimeList
 
@@ -37,6 +46,7 @@ AniList requests contain only the MAL and AniList IDs of shows in your library, 
 ## Requirements
 
 - Python ≥ 3.12
+- For playback: [`ani-cli`](https://github.com/pystardust/ani-cli) (tested with 5.1.6) and mpv
 - GTK 4, libadwaita ≥ 1.7, and PyGObject, all from your distribution:
   - Arch / CachyOS: `pacman -S python-gobject gtk4 libadwaita`
   - Fedora: `dnf install python3-gobject gtk4 libadwaita`
@@ -79,6 +89,7 @@ anical/
   providers/        MyAnimeList and AniList API clients with response validation
   auth/             MAL OAuth (PKCE plain, loopback receiver) and keyring token storage
   sync/             worker-thread fetchers (MAL list, AniList schedules) and cover cache
+  playback/         ani-cli picker (ANI_CLI_MENU) and mpv progress script, installed at runtime
   ui/               window, calendar and library views, show page, dialogs, preferences, refresh controller
 tests/              pytest
 ```

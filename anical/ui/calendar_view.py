@@ -56,7 +56,9 @@ class CalendarView(Adw.Bin):
         open_show.connect("activate", lambda _a, anime_id: window.show_anime(anime_id.get_int64()))
         toggle = Gio.SimpleAction.new("toggle-watched", GLib.VariantType.new("x"))
         toggle.connect("activate", lambda _a, episode_id: self._toggle_watched(episode_id.get_int64()))
-        for action in (open_show, toggle):
+        play = Gio.SimpleAction.new("play", GLib.VariantType.new("x"))
+        play.connect("activate", lambda _a, episode_id: window.play_episode(episode_id.get_int64()))
+        for action in (open_show, toggle, play):
             actions.add_action(action)
         self.insert_action_group("cal", actions)
 
@@ -193,8 +195,12 @@ class CalendarView(Adw.Bin):
             classes.append("delayed")
         return classes
 
-    def _entry_menu(self, entry: CalendarEntry) -> Gio.Menu:
+    def _entry_menu(self, entry: CalendarEntry, now: int) -> Gio.Menu:
         menu = Gio.Menu()
+        if entry.airs_at <= now:
+            item = Gio.MenuItem.new("Play in ani-cli", None)
+            item.set_action_and_target_value("cal.play", GLib.Variant.new_int64(entry.episode_id))
+            menu.append_item(item)
         item = Gio.MenuItem.new("Open Show", None)
         item.set_action_and_target_value("cal.open-show", GLib.Variant.new_int64(entry.anime_id))
         menu.append_item(item)
@@ -227,7 +233,7 @@ class CalendarView(Adw.Bin):
         status = entry.status(now, self._display.availability_lag_s)
         description = f"{self._name(entry)}, {self._describe(entry)} — {status.label}"
         button = Gtk.MenuButton(
-            child=body, menu_model=self._entry_menu(entry), tooltip_text=description,
+            child=body, menu_model=self._entry_menu(entry, now), tooltip_text=description,
             css_classes=["flat", "cal-card", *self._status_classes(entry, now)],
             overflow=Gtk.Overflow.HIDDEN,
         )
@@ -254,6 +260,14 @@ class CalendarView(Adw.Bin):
         status = entry.status(now, self._display.availability_lag_s)
         label = "Delayed" if entry.delayed and status is EntryStatus.UPCOMING else status.label
         row.add_suffix(Gtk.Label(label=label, valign=Gtk.Align.CENTER, css_classes=["cal-status", *self._status_classes(entry, now)]))
+        if entry.airs_at <= now:
+            play = Gtk.Button(
+                icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                tooltip_text="Play in ani-cli",
+            )
+            play.update_property([Gtk.AccessibleProperty.LABEL], [f"Play {self._name(entry)} episode {entry.number}"])
+            play.connect("clicked", lambda *_: self._window.play_episode(entry.episode_id))
+            row.add_suffix(play)
         row.connect("activated", lambda *_: self._window.show_anime(entry.anime_id))
         return row
 
