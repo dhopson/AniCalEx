@@ -84,7 +84,7 @@ class SyncController(GObject.Object):
     @property
     def config(self) -> MalConfig:
         return MalConfig(
-            client_id=self._settings.get(MAL_CLIENT_ID, ""),
+            client_id=(self._settings.get(MAL_CLIENT_ID) or "").strip(),  # pasted IDs often bring spaces
             mode=self._settings.get(MAL_MODE),
             username=self._settings.get(MAL_USERNAME),
         )

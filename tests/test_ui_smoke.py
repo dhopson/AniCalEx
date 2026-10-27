@@ -573,6 +573,25 @@ def test_wizard_counts_steps_and_goes_back(wizard_parts, controller, settings):
     assert wizard._title.get_subtitle() == "Step 4 of 4"  # finished: no more navigation
 
 
+def test_client_id_is_trimmed_wherever_it_comes_from(wizard_parts, controller, settings):
+    client_id = "0123456789abcdef0123456789abcdef"
+    make, _ = wizard_parts
+    wizard = make()
+    wizard.go_to(2)
+    wizard._client_entry.set_text(f" \t{client_id}\n ")  # pasted with whitespace around it
+    assert "looks like a client ID" in wizard._client_hint.get_label()
+    wizard._on_next()
+    assert settings.get(MAL_CLIENT_ID) == client_id
+
+    controller.set_client_id(f"  {client_id}  ")  # Preferences saves through this
+    assert settings.get(MAL_CLIENT_ID) == client_id
+    controller.set_client_id("   ")
+    assert settings.get(MAL_CLIENT_ID) is None
+
+    settings.set(MAL_CLIENT_ID, f"{client_id} \n")  # stored with whitespace by something else
+    assert controller.config.client_id == client_id
+
+
 def test_wizard_rerun_shows_what_is_already_set_up(wizard_parts, controller, settings):
     settings.set(MAL_CLIENT_ID, "fedcba9876543210fedcba9876543210")
     settings.set(MAL_MODE, "username")
