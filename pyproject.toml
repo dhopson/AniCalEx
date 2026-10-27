@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anical"
-version = "0.2.0"
+dynamic = ["version"]  # anical.__version__ is the one place the version is set
 description = "Anime library and airing calendar for Linux, macOS and Windows, with ani-cli playback"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -24,6 +24,9 @@ dev = ["pytest>=8", "ruff>=0.17"]
 
 [project.scripts]
 anical = "anical.app:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "anical.__version__" }  # read from the file, without importing GTK
 
 [tool.setuptools.packages.find]
 include = ["anical*"]

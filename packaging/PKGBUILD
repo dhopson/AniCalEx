@@ -1,6 +1,8 @@
 # Builds AniCal from this source checkout:  cd packaging && makepkg -si
 pkgname=anical
-pkgver=0.2.0
+_root="$(realpath "$startdir/..")"
+# anical/__init__.py is the one place the version is set.
+pkgver="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' "$_root/anical/__init__.py")"
 pkgrel=1
 pkgdesc="Anime library and airing calendar, with ani-cli playback"
 arch=('any')
@@ -12,7 +14,6 @@ optdepends=('ani-cli: play episodes'
 source=()
 
 _appid=io.github.dhopson.AniCal
-_root="$(realpath "$startdir/..")"
 
 build() {
   python -m build --wheel --no-isolation --outdir "$srcdir/dist" "$_root"
