@@ -396,7 +396,7 @@ class CalendarView(Adw.Bin):
         entries = self._window.schedule.aired_unwatched(now)
         if not entries:
             return Adw.StatusPage(
-                icon_name="emblem-ok-symbolic",
+                icon_name="object-select-symbolic",
                 title="All Caught Up",
                 description="Every episode that has aired is marked watched.",
             )

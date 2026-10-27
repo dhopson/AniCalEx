@@ -72,7 +72,7 @@ class _Program:
     def refresh(self) -> None:
         self.found = self.resolve()
         if self.found:
-            self.icon.set_from_icon_name("emblem-ok-symbolic")
+            self.icon.set_from_icon_name("object-select-symbolic")
             self.icon.set_css_classes(["success"])
             self.row.set_subtitle(self.found)
         else:
@@ -187,7 +187,7 @@ class SetupWizard(Adw.Dialog):
         steps = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
         for icon, title, subtitle in (
             ("system-users-symbolic", "A MyAnimeList client ID", "A free key that lets AniCal read MyAnimeList"),
-            ("emblem-ok-symbolic", "Your anime list", "Log in, or import a public list"),
+            ("view-list-bullet-symbolic", "Your anime list", "Log in, or import a public list"),
             ("media-playback-start-symbolic", "Playback", "Check for ani-cli and mpv, and install them"),
         ):
             row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False)
@@ -288,7 +288,7 @@ class SetupWizard(Adw.Dialog):
     def _done_row(self, title: str, subtitle: str) -> Gtk.Widget:
         rows = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
         row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False)
-        row.add_prefix(Gtk.Image(icon_name="emblem-ok-symbolic", css_classes=["success"]))
+        row.add_prefix(Gtk.Image(icon_name="object-select-symbolic", css_classes=["success"]))
         rows.append(row)
         return rows
 

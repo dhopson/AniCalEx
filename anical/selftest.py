@@ -26,7 +26,11 @@ from anical.platform import System, current
 REQUIRED_ADW = (1, 8)  # Adw.ShortcutsDialog (D22)
 ICONS = (
     APP_ID,
+    "dialog-information-symbolic",
     "dialog-warning-symbolic",
+    "edit-copy-symbolic",
+    "object-select-symbolic",
+    "view-list-bullet-symbolic",
     "document-edit-symbolic",
     "edit-find-symbolic",
     "folder-open-symbolic",

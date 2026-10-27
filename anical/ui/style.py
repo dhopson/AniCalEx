@@ -81,12 +81,14 @@ button.cal-cell.compact { min-height: 44px; }
   padding: 14px 16px;
   box-shadow: 0 1px 3px color-mix(in srgb, black 18%, transparent);
 }
+/* A square turned 45°, half hidden under the bubble: a point toward Koyomi. */
 .wizard-bubble-tail {
-  min-width: 18px;
-  min-height: 12px;
+  min-width: 16px;
+  min-height: 16px;
   background-color: var(--card-bg-color);
-  margin-left: 64px;
-  margin-top: -1px;
+  margin-left: 70px;
+  margin-top: -9px;
+  transform: rotate(45deg);
 }
 .wizard-step-dot { min-width: 8px; min-height: 8px; border-radius: 4px; background-color: color-mix(in srgb, currentColor 20%, transparent); }
 .wizard-step-dot.current { background-color: var(--accent-bg-color); min-width: 20px; }
