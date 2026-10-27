@@ -63,6 +63,17 @@ class PickRequest:
 
 
 @dataclass(frozen=True)
+class RequiredProgram:
+    """A program ani-cli playback needs, as the setup wizard and Preferences show it."""
+
+    name: str  # shown to the user
+    install_key: str  # the install scripts' name for it (anical/data/setup)
+    setting: str  # the setting that holds a location the user chose
+    about: str  # what it's for, in a few words
+    resolve: Callable[[], str | None]  # its full path, or None when not found
+
+
+@dataclass(frozen=True)
 class PlaybackReport:
     anime_id: int
     episode_id: int
@@ -89,6 +100,11 @@ class _Session:
 
 
 class PlaybackController(GObject.Object):
+    """Plays episodes (ani-cli, a link or a command), one at a time, and reports how far the user watched.
+
+    Emits `changed`, `pick-requested` when ani-cli needs the user to choose a show, and
+    `finished` with a `PlaybackReport`."""
+
     __gsignals__ = {
         "changed": (GObject.SignalFlags.RUN_FIRST, None, ()),
         "pick-requested": (GObject.SignalFlags.RUN_FIRST, None, (object,)),
@@ -148,6 +164,23 @@ class PlaybackController(GObject.Object):
     def resolve_bash(self) -> str | None:
         """Git Bash, which runs ani-cli on Windows. None elsewhere."""
         return find_bash(self._settings.get(PLAYBACK_BASH)) if current() is System.WINDOWS else None
+
+    def required_programs(self) -> list[RequiredProgram]:
+        """What ani-cli playback needs on this system, in install order."""
+        programs = [
+            RequiredProgram(
+                "ani-cli", "ani-cli", PLAYBACK_EXECUTABLE, "It finds and streams episodes.", self.resolve_executable
+            ),
+            RequiredProgram("mpv", "mpv", PLAYBACK_PLAYER, "The video player ani-cli uses.", self.resolve_player),
+        ]
+        if current() is System.WINDOWS:
+            programs.insert(
+                0,
+                RequiredProgram(
+                    "Git Bash", "git", PLAYBACK_BASH, "Part of Git for Windows; runs ani-cli.", self.resolve_bash
+                ),
+            )
+        return programs
 
     def mapping_for(self, anime_id: int, title: str) -> PlaybackMapping:
         return self._playback.mapping(anime_id) or PlaybackMapping(anime_id, sanitize_query(title))
@@ -255,8 +288,12 @@ class PlaybackController(GObject.Object):
         self.emit(
             "finished",
             PlaybackReport(
-                anime.id, episode.id, f"{anime.title}, {episode.label}", mapping.query,
-                PlaybackResult(Outcome.OPENED), False,
+                anime.id,
+                episode.id,
+                f"{anime.title}, {episode.label}",
+                mapping.query,
+                PlaybackResult(Outcome.OPENED),
+                False,
             ),
         )
         return None
@@ -277,7 +314,9 @@ class PlaybackController(GObject.Object):
         anime = self._repo.get_anime(session.anime_id)
         self.emit(
             "pick-requested",
-            PickRequest(anime.title, session.mapping.query, choices, lambda index: self._answer(session, index, choices)),
+            PickRequest(
+                anime.title, session.mapping.query, choices, lambda index: self._answer(session, index, choices)
+            ),
         )
         return GLib.SOURCE_CONTINUE
 
@@ -334,7 +373,11 @@ def _spawn(argv: list[str], env: dict[str, str]) -> tuple[subprocess.Popen, int 
     runs in Git Bash, where neither exists, and no console window is shown."""
     if not hasattr(os, "openpty"):
         process = subprocess.Popen(
-            argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            argv,
+            env=env,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
         return process, None

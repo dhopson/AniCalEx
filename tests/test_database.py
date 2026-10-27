@@ -85,10 +85,9 @@ def test_garbage_file_is_reported_as_corrupt(tmp_path):
 
 
 def test_transaction_rolls_back_on_error(conn):
-    with pytest.raises(RuntimeError):
-        with transaction(conn):
-            conn.execute("INSERT INTO settings (key, value_json) VALUES ('a', '1')")
-            raise RuntimeError
+    with pytest.raises(RuntimeError), transaction(conn):
+        conn.execute("INSERT INTO settings (key, value_json) VALUES ('a', '1')")
+        raise RuntimeError
     assert conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0] == 0
 
 

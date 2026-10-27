@@ -22,10 +22,6 @@ def to_announce(entries: Iterable[CalendarEntry], now: int, availability_lag_s: 
     due = []
     for entry in entries:
         available_at = entry.airs_at + availability_lag_s
-        if (
-            entry.state is WatchState.UNWATCHED
-            and not entry.estimated
-            and now - MAX_AGE_S < available_at <= now
-        ):
+        if entry.state is WatchState.UNWATCHED and not entry.estimated and now - MAX_AGE_S < available_at <= now:
             due.append(entry)
     return sorted(due, key=lambda e: (e.airs_at, e.title.casefold(), e.number))

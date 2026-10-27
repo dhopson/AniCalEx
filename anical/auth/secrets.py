@@ -8,10 +8,10 @@ from __future__ import annotations
 import gi
 
 gi.require_version("Secret", "1")
-from gi.repository import GLib, Secret  # noqa: E402
+from gi.repository import GLib, Secret
 
-from anical import APP_ID  # noqa: E402
-from anical.auth.mal_oauth import Token, TokenStore, TokenStoreError  # noqa: E402,F401
+from anical import APP_ID
+from anical.auth.mal_oauth import TOKEN_LABEL, Token, TokenStoreError
 
 
 def _schema(name: str) -> Secret.Schema:
@@ -34,27 +34,20 @@ class KeyringTokenStore:
                 secret = self._migrate_legacy()
         except GLib.Error as e:
             raise TokenStoreError(f"Couldn’t read the keyring: {e.message}") from e
-        if not secret:
-            return None
-        try:
-            return Token.from_json(secret)
-        except (ValueError, KeyError, TypeError):
-            return None  # unreadable entry: treat as logged out
+        return Token.from_saved(secret)
 
     @staticmethod
     def _migrate_legacy() -> str | None:
         secret = Secret.password_lookup_sync(_LEGACY_SCHEMA, _ATTRIBUTES, None)
         if secret:
-            Secret.password_store_sync(
-                _SCHEMA, _ATTRIBUTES, Secret.COLLECTION_DEFAULT, "AniCal MyAnimeList login", secret, None
-            )
+            Secret.password_store_sync(_SCHEMA, _ATTRIBUTES, Secret.COLLECTION_DEFAULT, TOKEN_LABEL, secret, None)
             Secret.password_clear_sync(_LEGACY_SCHEMA, _ATTRIBUTES, None)
         return secret
 
     def save(self, token: Token) -> None:
         try:
             Secret.password_store_sync(
-                _SCHEMA, _ATTRIBUTES, Secret.COLLECTION_DEFAULT, "AniCal MyAnimeList login", token.to_json(), None
+                _SCHEMA, _ATTRIBUTES, Secret.COLLECTION_DEFAULT, TOKEN_LABEL, token.to_json(), None
             )
         except GLib.Error as e:
             raise TokenStoreError(f"Couldn’t save the login to the keyring: {e.message}") from e

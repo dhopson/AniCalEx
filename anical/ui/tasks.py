@@ -5,7 +5,6 @@ from __future__ import annotations
 import threading
 import traceback
 from collections.abc import Callable
-from typing import TypeVar
 
 from gi.repository import GLib
 
@@ -15,12 +14,13 @@ from anical.providers.anilist import AniListError
 from anical.providers.mal import MalError
 from anical.sync.mal_sync import MalSyncError
 
-T = TypeVar("T")
 # Failures with a user-facing message; anything else also gets a traceback on stderr.
 _EXPECTED = (OAuthError, NetworkError, MalError, MalSyncError, AniListError)
 
 
-def run_in_thread(work: Callable[[], T], on_done: Callable[[T], None], on_error: Callable[[Exception], None]) -> None:
+def run_in_thread[T](
+    work: Callable[[], T], on_done: Callable[[T], None], on_error: Callable[[Exception], None]
+) -> None:
     def deliver(callback, value):
         callback(value)
         return GLib.SOURCE_REMOVE

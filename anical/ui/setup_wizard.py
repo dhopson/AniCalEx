@@ -1,4 +1,4 @@
-"""First-run setup wizard, guided by Koyomi, AniCal's mascot.
+"""First-run setup wizard, guided by AniCal's mascot.
 
 Four steps, each skippable, with Back available until Finish:
 1. Welcome.
@@ -23,10 +23,9 @@ from gi.repository import Adw, Gdk, GLib, Gtk
 
 from anical.auth.mal_oauth import REDIRECT_URI, OAuthError
 from anical.db.settings import SETUP_SEEN, SettingsRepository
-from anical.platform import System, current
 from anical.platform.terminal import TerminalError, open_install_terminal
 from anical.sync.mal_sync import ACCOUNT, USERNAME
-from anical.ui.playback_controller import PlaybackController
+from anical.ui.playback_controller import PlaybackController, RequiredProgram
 from anical.ui.sync_controller import SyncController
 
 MAL_API_CONFIG_URL = "https://myanimelist.net/apiconfig"
@@ -57,16 +56,16 @@ def _label(text: str, *classes: str, **props) -> Gtk.Label:
 class _Program:
     """One program the playback step checks for, with its row widgets."""
 
-    def __init__(self, name: str, install_key: str, resolve: Callable[[], str | None], about: str):
-        self.name = name
-        self.install_key = install_key
-        self.resolve = resolve
-        self.row = Adw.ActionRow(title=name, use_markup=False)
+    def __init__(self, program: RequiredProgram):
+        self.name = program.name
+        self.install_key = program.install_key
+        self.resolve = program.resolve
+        self.row = Adw.ActionRow(title=program.name, use_markup=False)
         self.icon = Gtk.Image()
         self.row.add_prefix(self.icon)
         self.install = Gtk.Button(label="Install…", valign=Gtk.Align.CENTER)
         self.row.add_suffix(self.install)
-        self.about = about
+        self.about = program.about
         self.found: str | None = None
 
     def refresh(self) -> None:
@@ -83,6 +82,8 @@ class _Program:
 
 
 class SetupWizard(Adw.Dialog):
+    """The setup wizard: client ID, sign-in and playback programs, with Back until it's finished."""
+
     def __init__(
         self,
         sync_controller: SyncController,
@@ -147,7 +148,7 @@ class SetupWizard(Adw.Dialog):
     # Layout
 
     def _page(self, name: str, content: Gtk.Widget) -> Gtk.Widget:
-        """Koyomi and her speech bubble on the left, the step's controls on the right."""
+        """The mascot and its speech bubble on the left, the step's controls on the right."""
         bubble = _label("", "wizard-bubble", max_width_chars=26)
         self._bubbles[name] = bubble
         tail = Gtk.Box(css_classes=["wizard-bubble-tail"], halign=Gtk.Align.START)
@@ -203,7 +204,8 @@ class SetupWizard(Adw.Dialog):
         box.append(_label("Get a MyAnimeList Client ID", "title-2"))
         box.append(
             _label(
-                "MyAnimeList only answers registered apps. Registering AniCal is free, and AniCal only ever reads your list."
+                "MyAnimeList only answers registered apps. "
+                "Registering AniCal is free, and AniCal only ever reads your list."
             )
         )
 
@@ -222,7 +224,9 @@ class SetupWizard(Adw.Dialog):
             copy.add_css_class("flat")
             copy.connect(
                 "clicked",
-                lambda _b, v=value: Gdk.Display.get_default().get_clipboard().set_content(Gdk.ContentProvider.new_for_value(v)),
+                lambda _b, v=value: (
+                    Gdk.Display.get_default().get_clipboard().set_content(Gdk.ContentProvider.new_for_value(v))
+                ),
             )
             row.add_suffix(copy)
             fields.append(row)
@@ -270,7 +274,9 @@ class SetupWizard(Adw.Dialog):
             box.append(self._done_row(f"Importing {config.username}’s public list", "Your list is being imported."))
         else:
             box.append(_label("Log in to import your list, including private entries. AniCal never changes it."))
-            login = Gtk.Button(label="Log In with MyAnimeList…", halign=Gtk.Align.START, css_classes=["pill", "suggested-action"])
+            login = Gtk.Button(
+                label="Log In with MyAnimeList…", halign=Gtk.Align.START, css_classes=["pill", "suggested-action"]
+            )
             login.connect("clicked", self._on_login)
             box.append(login)
             box.append(_label("Or import a public list by username:", "heading", margin_top=12))
@@ -314,15 +320,7 @@ class SetupWizard(Adw.Dialog):
             self._sync.sync()
 
     def _make_programs(self) -> list[_Program]:
-        playback = self._playback
-        programs = [
-            _Program("ani-cli", "ani-cli", playback.resolve_executable, "It finds and streams episodes."),
-            _Program("mpv", "mpv", playback.resolve_player, "The video player ani-cli uses."),
-        ]
-        if current() is System.WINDOWS:
-            programs.insert(
-                0, _Program("Git Bash", "git", playback.resolve_bash, "Part of Git for Windows; runs ani-cli.")
-            )
+        programs = [_Program(required) for required in self._playback.required_programs()]
         for program in programs:
             program.install.connect("clicked", lambda _b, p=program: self._install([p]))
         return programs
@@ -386,9 +384,7 @@ class SetupWizard(Adw.Dialog):
         self._stack.set_visible_child_name(name)
         self._title.set_subtitle(f"Step {step + 1} of {len(STEPS)}")
         for index, dot in enumerate(self._dots):
-            dot.set_css_classes(
-                ["wizard-step-dot", "current" if index == step else "done" if index < step else "todo"]
-            )
+            dot.set_css_classes(["wizard-step-dot", "current" if index == step else "done" if index < step else "todo"])
         if self._recheck_id:
             GLib.source_remove(self._recheck_id)
             self._recheck_id = 0
@@ -436,7 +432,7 @@ class SetupWizard(Adw.Dialog):
             return
         config = self._sync.config
         self._bubbles["welcome"].set_label(
-            "Hi, I’m Koyomi! Let’s get AniCal ready. It only takes a few steps, and you can skip any of them."
+            "Let’s get AniCal ready. It only takes a few steps, and you can skip any of them."
         )
         self._bubbles["client-id"].set_label(
             "First, MyAnimeList needs a key for AniCal, called a client ID. It’s free and takes about a minute."
@@ -467,4 +463,3 @@ class SetupWizard(Adw.Dialog):
         if self._handler:
             self._sync.disconnect(self._handler)
             self._handler = 0  # "closed" can come twice (Finish, then a forced close)
-

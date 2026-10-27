@@ -12,29 +12,28 @@ import gi
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
 
-from gi.repository import Adw, Gio, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, Gio, GLib, Gtk
 
-from anical import APP_ID, __version__  # noqa: E402
-from anical.db.backup import automatic_backup  # noqa: E402
-from anical.db.database import DatabaseError, open_database  # noqa: E402
-from anical.db.playback import PlaybackRepository  # noqa: E402
-from anical.db.repository import LibraryRepository  # noqa: E402
-from anical.db.settings import SETUP_SEEN, SettingsRepository  # noqa: E402
-from anical.net.http import UrllibClient  # noqa: E402
-from anical.platform.notify import notification_sender  # noqa: E402
-from anical.platform.paths import app_paths  # noqa: E402
-from anical.platform.secrets import token_store  # noqa: E402
-from anical.sync.mal_sync import MalSyncService  # noqa: E402
-from anical.ui.style import install_css, install_icons  # noqa: E402
-from anical.ui.display import DisplaySettings  # noqa: E402
-from anical.db.schedule import ScheduleRepository  # noqa: E402
-from anical.ui.notifier import Notifier  # noqa: E402
-from anical.ui.playback_controller import PlaybackController  # noqa: E402
-from anical.ui.preferences import PreferencesDialog  # noqa: E402
-from anical.ui.setup_wizard import SetupWizard  # noqa: E402
-from anical.ui.sync_controller import SyncController  # noqa: E402
-from anical.ui.window import DatabaseErrorWindow, MainWindow  # noqa: E402
-
+from anical import APP_ID, __version__
+from anical.db.backup import automatic_backup
+from anical.db.database import DatabaseError, open_database
+from anical.db.playback import PlaybackRepository
+from anical.db.repository import LibraryRepository
+from anical.db.schedule import ScheduleRepository
+from anical.db.settings import SETUP_SEEN, SettingsRepository
+from anical.net.http import UrllibClient
+from anical.platform.notify import notification_sender
+from anical.platform.paths import app_paths
+from anical.platform.secrets import token_store
+from anical.sync.mal_sync import MalSyncService
+from anical.ui.display import DisplaySettings
+from anical.ui.notifier import Notifier
+from anical.ui.playback_controller import PlaybackController
+from anical.ui.preferences import PreferencesDialog
+from anical.ui.setup_wizard import SetupWizard
+from anical.ui.style import install_css, install_icons
+from anical.ui.sync_controller import SyncController
+from anical.ui.window import DatabaseErrorWindow, MainWindow
 
 # Shown in the Keyboard Shortcuts window; quit, preferences and the
 # original window shortcuts are registered with their actions below.
@@ -51,24 +50,33 @@ ACCELERATORS = {
 def shortcuts_dialog() -> Adw.ShortcutsDialog:
     dialog = Adw.ShortcutsDialog()
     for title, items in (
-        ("General", [
-            ("Add Anime", "<Primary>n"),
-            ("Search Library", "<Primary>f"),
-            ("Refresh", "<Primary>r"),
-            ("Preferences", "<Primary>comma"),
-            ("Keyboard Shortcuts", "<Primary>question"),
-            ("Quit", "<Primary>q"),
-        ]),
-        ("Views", [
-            ("Calendar", "<Primary>1"),
-            ("Library", "<Primary>2"),
-            ("Back", "<Alt>Left"),
-        ]),
-        ("Calendar", [
-            ("Previous Day, Week or Month", "<Primary>Page_Up"),
-            ("Next Day, Week or Month", "<Primary>Page_Down"),
-            ("Today", "<Primary>Home"),
-        ]),
+        (
+            "General",
+            [
+                ("Add Anime", "<Primary>n"),
+                ("Search Library", "<Primary>f"),
+                ("Refresh", "<Primary>r"),
+                ("Preferences", "<Primary>comma"),
+                ("Keyboard Shortcuts", "<Primary>question"),
+                ("Quit", "<Primary>q"),
+            ],
+        ),
+        (
+            "Views",
+            [
+                ("Calendar", "<Primary>1"),
+                ("Library", "<Primary>2"),
+                ("Back", "<Alt>Left"),
+            ],
+        ),
+        (
+            "Calendar",
+            [
+                ("Previous Day, Week or Month", "<Primary>Page_Up"),
+                ("Next Day, Week or Month", "<Primary>Page_Down"),
+                ("Today", "<Primary>Home"),
+            ],
+        ),
     ):
         section = Adw.ShortcutsSection(title=title)
         for label, accelerator in items:
@@ -78,6 +86,8 @@ def shortcuts_dialog() -> Adw.ShortcutsDialog:
 
 
 class AniCalApplication(Adw.Application):
+    """The application: opens the library, builds the main window, and owns the app-wide actions and controllers."""
+
     def __init__(self):
         # A separate library ($ANICAL_DATA_DIR: development, tests, CI) runs as its own
         # instance instead of handing over to an AniCal that is already running.
@@ -196,7 +206,10 @@ class AniCalApplication(Adw.Application):
         if self._sync is None or not isinstance(window, MainWindow):
             return
         wizard = SetupWizard(
-            self._sync, self._playback, self._settings, self._runtime_dir,
+            self._sync,
+            self._playback,
+            self._settings,
+            self._runtime_dir,
             on_finished=lambda: window.toast("AniCal is set up. Enjoy your shows!"),
         )
         wizard.present(window)
@@ -207,7 +220,11 @@ class AniCalApplication(Adw.Application):
         if self._sync is not None:
             window = self.get_active_window()
             PreferencesDialog(
-                self._sync, self._display, self._playback, self._conn, self._data_dir,
+                self._sync,
+                self._display,
+                self._playback,
+                self._conn,
+                self._data_dir,
                 on_restored=window.library_changed if isinstance(window, MainWindow) else lambda: None,
             ).present(window)
 

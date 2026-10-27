@@ -18,6 +18,8 @@ CHECK_INTERVAL_S = 5 * 60
 
 
 class Notifier:
+    """Announces episodes that became probably available, once each; more than three at once become one summary."""
+
     def __init__(
         self,
         schedule: ScheduleRepository,

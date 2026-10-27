@@ -45,7 +45,7 @@ ICONS = (
 
 def redirect_stderr(report: str) -> None:
     """A windowed build has no console: send C-level stderr to a file. Call before GTK starts."""
-    log = open(os.path.splitext(report)[0] + ".log", "w", encoding="utf-8", buffering=1)  # noqa: SIM115
+    log = open(os.path.splitext(report)[0] + ".log", "w", encoding="utf-8", buffering=1)  # noqa: SIM115 - stays open while the app runs
     os.dup2(log.fileno(), 2)
     sys.stderr = log
 
@@ -96,12 +96,18 @@ def run(window: Gtk.Window, paths, send) -> dict:
 
         flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
         pick = subprocess.run(
-            [program("anical-pick"), "Playing episode 1 of Show... "], input=b"next\nquit\n",
-            capture_output=True, timeout=30, creationflags=flags,
+            [program("anical-pick"), "Playing episode 1 of Show... "],
+            input=b"next\nquit\n",
+            capture_output=True,
+            timeout=30,
+            creationflags=flags,
         )
         shim = subprocess.run(
-            [program("anical-mpv"), "https://example.invalid/ep.m3u8"], capture_output=True, timeout=30,
-            env={**os.environ, "ANICAL_MPV": str(paths.runtime / "no-such-mpv")}, creationflags=flags,
+            [program("anical-mpv"), "https://example.invalid/ep.m3u8"],
+            capture_output=True,
+            timeout=30,
+            env={**os.environ, "ANICAL_MPV": str(paths.runtime / "no-such-mpv")},
+            creationflags=flags,
         )
         ok = pick.stdout.strip() == b"quit" and shim.returncode == 127 and script.is_file()
         return ok, f"{folder}: picker {pick.stdout.strip()!r}, shim exit {shim.returncode}"
@@ -145,7 +151,10 @@ def run(window: Gtk.Window, paths, send) -> dict:
         finally:
             if terminal is not None:
                 os.close(terminal)
-        return process.returncode == 0, f"{' '.join(argv)}: exit {process.returncode} {stderr.decode(errors='replace')[-300:]}"
+        return (
+            process.returncode == 0,
+            f"{' '.join(argv)}: exit {process.returncode} {stderr.decode(errors='replace')[-300:]}",
+        )
 
     def setup_art():
         from gi.repository import Gdk
@@ -204,7 +213,9 @@ def _dialog_state(window: Gtk.Window):
         ]
         wizard = getattr(window.get_application(), "selftest_wizard", None)
         where = (
-            f"wizard root={type(wizard.get_root()).__name__} mapped={wizard.get_mapped()}" if wizard else "no wizard made"
+            f"wizard root={type(wizard.get_root()).__name__} mapped={wizard.get_mapped()}"
+            if wizard
+            else "no wizard made"
         )
         return False, f"the window shows no dialog; {where}; toplevels: {toplevels}"
     root = dialog.get_root()

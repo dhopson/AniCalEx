@@ -5,6 +5,7 @@ import urllib.parse
 import urllib.request
 
 import pytest
+from helpers import FakeHttp, MemoryTokenStore, json_response
 
 from anical.auth.mal_oauth import (
     REDIRECT_URI,
@@ -19,14 +20,15 @@ from anical.auth.mal_oauth import (
 from anical.net.http import Response
 from anical.providers.mal import MalAuthError
 from anical.sync.mal_sync import ACCOUNT, USERNAME, MalConfig, MalSyncError, MalSyncService
-from helpers import FakeHttp, MemoryTokenStore, json_response
 
 NOW = 1_790_000_000
 EMPTY_LIST = {"data": [], "paging": {}}
 
 
 def token_reply(access="new-access", refresh="new-refresh", expires_in=3600):
-    return json_response({"token_type": "Bearer", "access_token": access, "refresh_token": refresh, "expires_in": expires_in})
+    return json_response(
+        {"token_type": "Bearer", "access_token": access, "refresh_token": refresh, "expires_in": expires_in}
+    )
 
 
 def test_authorize_url_uses_plain_pkce():

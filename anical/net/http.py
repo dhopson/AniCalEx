@@ -20,6 +20,12 @@ from typing import Any, Protocol
 from anical import __version__
 
 USER_AGENT = f"AniCal/{__version__}"
+# Some URLs come from API responses (cover images), so urllib's file: and ftp:
+# handlers must never be reachable.
+ALLOWED_SCHEMES = ("https", "http")
+# Far above any real reply (MAL list pages, AniList pages, covers); stops a
+# broken or hostile server from filling memory.
+MAX_RESPONSE_BYTES = 32 * 1024 * 1024
 
 
 class NetworkError(Exception):
@@ -28,6 +34,8 @@ class NetworkError(Exception):
 
 @dataclass(frozen=True)
 class Response:
+    """An HTTP reply: status, body and headers."""
+
     status: int
     body: bytes = b""
     headers: Mapping[str, str] = field(default_factory=dict)
@@ -41,6 +49,8 @@ class Response:
 
 
 class HttpClient(Protocol):
+    """What the providers need from HTTP: `UrllibClient` in the app, a fake in tests."""
+
     def request(
         self,
         method: str,
@@ -65,11 +75,27 @@ def tls_context() -> ssl.SSLContext:
     return ssl.create_default_context()
 
 
+def allowed_url(url: str) -> bool:
+    """Whether `url` is a web address the client will fetch."""
+    return urllib.parse.urlsplit(url).scheme.lower() in ALLOWED_SCHEMES
+
+
+def _read_limited(reply) -> bytes:
+    body = reply.read(MAX_RESPONSE_BYTES + 1)
+    if len(body) > MAX_RESPONSE_BYTES:
+        raise NetworkError(f"The reply was larger than {MAX_RESPONSE_BYTES // (1024 * 1024)} MB")
+    return body
+
+
 class UrllibClient:
+    """`HttpClient` on urllib, with the TLS context from `tls_context`."""
+
     def __init__(self, timeout: float = 20):
         self._timeout = timeout
 
     def request(self, method, url, *, params=None, headers=None, form=None, json_body=None) -> Response:
+        if not allowed_url(url):
+            raise NetworkError(f"Not a web address: {url[:80]}")
         if params:
             url = f"{url}{'&' if '?' in url else '?'}{urllib.parse.urlencode(params)}"
         data = None
@@ -86,8 +112,8 @@ class UrllibClient:
             request.add_header(name, value)
         try:
             with urllib.request.urlopen(request, timeout=self._timeout, context=tls_context()) as reply:
-                return Response(reply.status, reply.read(), dict(reply.headers.items()))
+                return Response(reply.status, _read_limited(reply), dict(reply.headers.items()))
         except urllib.error.HTTPError as e:
-            return Response(e.code, e.read(), dict(e.headers.items()))
+            return Response(e.code, _read_limited(e), dict(e.headers.items()))
         except (urllib.error.URLError, TimeoutError, OSError) as e:
             raise NetworkError(str(getattr(e, "reason", e))) from e

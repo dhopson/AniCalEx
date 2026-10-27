@@ -29,11 +29,15 @@ NOTIFICATIONS_ENABLED = "notifications.enabled"
 SETUP_SEEN = "setup.seen"  # the first-run wizard was finished or closed; it isn't shown again by itself
 
 # Sync-state keys
-LAST_REFRESH_RUN = "refresh.last_run"  # epoch seconds of the last successful refresh; no automatic refresh within 24h of it
+LAST_REFRESH_RUN = (
+    "refresh.last_run"  # epoch seconds of the last successful refresh; no automatic refresh within 24h of it
+)
 LAST_REFRESH_ERROR = "refresh.last_error"
 
 
 class SettingsRepository:
+    """Settings stored as JSON values by key, plus the app's own state (such as the last refresh)."""
+
     def __init__(self, conn: sqlite3.Connection, clock: Clock = system_clock):
         self._conn = conn
         self._clock = clock

@@ -1,3 +1,5 @@
+"""The Preferences dialog."""
+
 from __future__ import annotations
 
 import datetime
@@ -26,11 +28,11 @@ from anical.db.settings import (
     PLAYBACK_QUALITY,
 )
 from anical.domain.playback import MODES, QUALITIES
-from anical.sync.mal_sync import ACCOUNT, USERNAME
-from anical.platform.timezone import available_timezones, system_timezone_name
-from anical.ui.display import DisplaySettings
 from anical.platform import System, current
-from anical.ui.playback_controller import BACKENDS, PlaybackController
+from anical.platform.timezone import available_timezones, system_timezone_name
+from anical.sync.mal_sync import ACCOUNT, USERNAME
+from anical.ui.display import DisplaySettings
+from anical.ui.playback_controller import BACKENDS, PlaybackController, RequiredProgram
 from anical.ui.sync_controller import SyncController
 
 MAL_API_CONFIG_URL = "https://myanimelist.net/apiconfig"
@@ -47,6 +49,7 @@ _INSTALL_HINTS = {
     System.WINDOWS: {
         "ani-cli": "Install it with scoop (scoop install ani-cli), or enter the path to the ani-cli script",
         "mpv": "Install it with scoop (scoop install mpv), or enter the path to mpv.exe",
+        "git": "Install Git for Windows, or enter the path to bash.exe",
     },
 }
 
@@ -58,6 +61,8 @@ def format_time(epoch: int | None) -> str:
 
 
 class PreferencesDialog(Adw.PreferencesDialog):
+    """The Preferences dialog: general, MyAnimeList, playback and data pages."""
+
     def __init__(
         self,
         controller: SyncController,
@@ -108,7 +113,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
         group.add(week_start)
 
         english = Adw.SwitchRow(
-            title="Use English Titles", subtitle="When a show has an English title, use it in the calendar",
+            title="Use English Titles",
+            subtitle="When a show has an English title, use it in the calendar",
             active=display.english_titles,
         )
         english.connect("notify::active", lambda row, _p: display.set(DISPLAY_ENGLISH_TITLES, row.get_active()))
@@ -153,19 +159,14 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
         programs = Adw.PreferencesGroup(
             title="ani-cli",
-            description="AniCal starts ani-cli, which plays in mpv. Leave a field empty to find the program automatically.",
+            description=(
+                "AniCal starts ani-cli, which plays in mpv. Leave a field empty to find the program automatically."
+            ),
         )
-        self._program_row(
-            programs, "ani-cli", PLAYBACK_EXECUTABLE, config.executable, playback.resolve_executable,
-            _INSTALL_HINTS[system]["ani-cli"],
-        )
-        self._program_row(
-            programs, "mpv", PLAYBACK_PLAYER, config.player, playback.resolve_player, _INSTALL_HINTS[system]["mpv"]
-        )
-        if system is System.WINDOWS:
+        chosen = {PLAYBACK_EXECUTABLE: config.executable, PLAYBACK_PLAYER: config.player, PLAYBACK_BASH: config.bash}
+        for program in playback.required_programs():
             self._program_row(
-                programs, "Git Bash", PLAYBACK_BASH, config.bash or "", playback.resolve_bash,
-                "Install Git for Windows, or enter the path to bash.exe",
+                programs, program, chosen[program.setting] or "", _INSTALL_HINTS[system][program.install_key]
             )
         page.add(programs)
 
@@ -178,9 +179,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
             ),
         )
         template = Adw.EntryRow(title="Link or Command", show_apply_button=True, text=playback.external_template)
-        template.connect(
-            "apply", lambda row: playback.set_setting(PLAYBACK_EXTERNAL, row.get_text().strip() or None)
-        )
+        template.connect("apply", lambda row: playback.set_setting(PLAYBACK_EXTERNAL, row.get_text().strip() or None))
         external.add(template)
         page.add(external)
 
@@ -225,19 +224,20 @@ class PreferencesDialog(Adw.PreferencesDialog):
         show_backend()
         return page
 
-    def _program_row(self, group, name, key, current_value, resolve, hint) -> None:
+    def _program_row(self, group, program: RequiredProgram, current_value: str, hint: str) -> None:
         """An entry for a program's location plus a row saying where it was found."""
+        name = program.name
         text = "" if current_value in ("ani-cli", "mpv") else current_value
         entry = Adw.EntryRow(title=f"{name} Location", show_apply_button=True, text=text)
         status = Adw.ActionRow(use_markup=False)
 
         def update() -> None:
-            found = resolve()
+            found = program.resolve()
             status.set_title(f"{name} Found" if found else f"{name} Not Found")
             status.set_subtitle(found or hint)
 
         def apply(row: Adw.EntryRow) -> None:
-            self._playback.set_setting(key, row.get_text().strip() or None)
+            self._playback.set_setting(program.setting, row.get_text().strip() or None)
             update()
 
         entry.connect("apply", apply)
@@ -249,7 +249,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
         page = Adw.PreferencesPage(title="Data", icon_name="drive-harddisk-symbolic")
         group = Adw.PreferencesGroup(
             title="Backups",
-            description="AniCal keeps the last four weekly backups automatically. Your library never leaves this computer.",
+            description=(
+                "AniCal keeps the last four weekly backups automatically. Your library never leaves this computer."
+            ),
         )
         backup = Adw.ActionRow(title="Back Up Library", subtitle="Save a copy anywhere, e.g. another drive")
         button = Gtk.Button(label="Back Up…", valign=Gtk.Align.CENTER)
@@ -266,7 +268,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
         folder = Adw.ActionRow(title="Data Folder", subtitle=str(self._data_dir), use_markup=False)
         button = Gtk.Button(icon_name="folder-open-symbolic", valign=Gtk.Align.CENTER, tooltip_text="Open Data Folder")
         button.connect(
-            "clicked", lambda *_: Gtk.FileLauncher.new(Gio.File.new_for_path(str(self._data_dir))).launch(self, None, None)
+            "clicked",
+            lambda *_: Gtk.FileLauncher.new(Gio.File.new_for_path(str(self._data_dir))).launch(self, None, None),
         )
         folder.add_suffix(button)
         group.add(folder)
@@ -377,7 +380,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
         login_row = Adw.ActionRow(
             title="Log In",
             subtitle="Opens MyAnimeList in your browser. Needed for private lists."
-            if has_client else "Available once a client ID is set",
+            if has_client
+            else "Available once a client ID is set",
         )
         login = Gtk.Button(label="Log In", valign=Gtk.Align.CENTER, css_classes=["suggested-action"])
         login.set_sensitive(has_client)
@@ -398,7 +402,8 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def _sync_group(self) -> Adw.PreferencesGroup:
         controller = self._controller
         group = Adw.PreferencesGroup(
-            title="Sync", description="Your list and airing times refresh when AniCal starts and once a day while it runs."
+            title="Sync",
+            description="Your list and airing times refresh when AniCal starts and once a day while it runs.",
         )
         row = Adw.ActionRow(title="Last Synced", subtitle=format_time(controller.last_run))
         if controller.busy:
@@ -417,7 +422,9 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def _client_group(self) -> Adw.PreferencesGroup:
         group = Adw.PreferencesGroup(
             title="API Client",
-            description=f"A client ID from {MAL_API_CONFIG_URL.removeprefix('https://')} with redirect URL {REDIRECT_URI}",
+            description=(
+                f"A client ID from {MAL_API_CONFIG_URL.removeprefix('https://')} with redirect URL {REDIRECT_URI}"
+            ),
         )
         entry = Adw.EntryRow(title="Client ID", show_apply_button=True, text=self._controller.config.client_id)
         entry.connect("apply", lambda row: self._controller.set_client_id(row.get_text()))
@@ -448,6 +455,4 @@ class PreferencesDialog(Adw.PreferencesDialog):
             self.add_toast(Adw.Toast(title=error, use_markup=False, timeout=6))
 
     def _on_logout(self, *_):
-        self._controller.logout(
-            lambda error: error and self.add_toast(Adw.Toast(title=error, use_markup=False))
-        )
+        self._controller.logout(lambda error: error and self.add_toast(Adw.Toast(title=error, use_markup=False)))

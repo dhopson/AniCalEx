@@ -42,6 +42,8 @@ _RERENDER_S = 300  # statuses move from "upcoming" to "aired" as time passes
 
 
 class CalendarView(Adw.Bin):
+    """The airing calendar: day, week and month views, and the Unwatched list."""
+
     compact = GObject.Property(type=bool, default=False)
 
     def __init__(self, window: MainWindow):
@@ -85,7 +87,12 @@ class CalendarView(Adw.Bin):
         self._top_row.append(self._modes)
         self._modes_row = Gtk.Box(halign=Gtk.Align.CENTER, visible=False)
         header = Gtk.Box(
-            orientation=Gtk.Orientation.VERTICAL, spacing=6, margin_top=6, margin_bottom=6, margin_start=12, margin_end=12
+            orientation=Gtk.Orientation.VERTICAL,
+            spacing=6,
+            margin_top=6,
+            margin_bottom=6,
+            margin_start=12,
+            margin_end=12,
         )
         header.append(self._top_row)
         header.append(self._modes_row)
@@ -219,10 +226,15 @@ class CalendarView(Adw.Bin):
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, hexpand=True)
         text.append(
             Gtk.Label(
-                label=self._name(entry), wrap=True, wrap_mode=Pango.WrapMode.WORD_CHAR, lines=2,
+                label=self._name(entry),
+                wrap=True,
+                wrap_mode=Pango.WrapMode.WORD_CHAR,
+                lines=2,
                 # A wrapping label asks for its unwrapped width unless capped; the column decides.
                 max_width_chars=8,
-                ellipsize=Pango.EllipsizeMode.END, xalign=0, css_classes=["caption-heading"],
+                ellipsize=Pango.EllipsizeMode.END,
+                xalign=0,
+                css_classes=["caption-heading"],
             )
         )
         moment = local_datetime(entry.airs_at, self._display.timezone)
@@ -237,7 +249,9 @@ class CalendarView(Adw.Bin):
         status = entry.status(now, self._display.availability_lag_s)
         description = f"{self._name(entry)}, {self._describe(entry)} — {status.label}"
         button = Gtk.MenuButton(
-            child=body, menu_model=self._entry_menu(entry, now), tooltip_text=description,
+            child=body,
+            menu_model=self._entry_menu(entry, now),
+            tooltip_text=description,
             css_classes=["flat", "cal-card", *self._status_classes(entry, now)],
             overflow=Gtk.Overflow.HIDDEN,
         )
@@ -257,16 +271,24 @@ class CalendarView(Adw.Bin):
         row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False, activatable=True, title_lines=2)
         if not in_show_group:
             row.add_prefix(cover(entry.cover_path, self._name(entry), 32, 45))
-        check = Gtk.CheckButton(active=entry.state is WatchState.WATCHED, valign=Gtk.Align.CENTER, tooltip_text="Watched")
+        check = Gtk.CheckButton(
+            active=entry.state is WatchState.WATCHED, valign=Gtk.Align.CENTER, tooltip_text="Watched"
+        )
         check.update_property([Gtk.AccessibleProperty.LABEL], [f"{self._name(entry)} episode {entry.number} watched"])
         check.connect("toggled", lambda c: self._set_watched(entry.episode_id, c.get_active()))
         row.add_prefix(check)  # prefixes stack leftwards: the checkbox ends up first
         status = entry.status(now, self._display.availability_lag_s)
         label = "Delayed" if entry.delayed and status is EntryStatus.UPCOMING else status.label
-        row.add_suffix(Gtk.Label(label=label, valign=Gtk.Align.CENTER, css_classes=["cal-status", *self._status_classes(entry, now)]))
+        row.add_suffix(
+            Gtk.Label(
+                label=label, valign=Gtk.Align.CENTER, css_classes=["cal-status", *self._status_classes(entry, now)]
+            )
+        )
         if entry.airs_at <= now:
             play = Gtk.Button(
-                icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
+                icon_name="media-playback-start-symbolic",
+                valign=Gtk.Align.CENTER,
+                css_classes=["flat"],
                 tooltip_text="Play",
             )
             play.update_property([Gtk.AccessibleProperty.LABEL], [f"Play {self._name(entry)} episode {entry.number}"])
@@ -305,7 +327,9 @@ class CalendarView(Adw.Bin):
             columns.append(column)
         return columns
 
-    def _agenda(self, start: datetime.date, end: datetime.date, days: dict, now: int, show_empty_days: bool) -> Gtk.Widget:
+    def _agenda(
+        self, start: datetime.date, end: datetime.date, days: dict, now: int, show_empty_days: bool
+    ) -> Gtk.Widget:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=18, margin_top=12)
         today = self._today()
         day = start
@@ -344,7 +368,9 @@ class CalendarView(Adw.Bin):
             index += 1
         return grid
 
-    def _month_cell(self, day: datetime.date, entries: list[CalendarEntry], now: int, today: datetime.date) -> Gtk.Widget:
+    def _month_cell(
+        self, day: datetime.date, entries: list[CalendarEntry], now: int, today: datetime.date
+    ) -> Gtk.Widget:
         content = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2, valign=Gtk.Align.START)
         number = Gtk.Label(label=str(day.day), xalign=0, css_classes=["caption-heading"])
         if day == today:
@@ -354,17 +380,32 @@ class CalendarView(Adw.Bin):
             if entries:
                 dots = Gtk.Box(spacing=2)
                 for entry in entries[:4]:
-                    dots.append(Gtk.Box(valign=Gtk.Align.CENTER, css_classes=["cal-dot", *self._status_classes(entry, now)]))
+                    dots.append(
+                        Gtk.Box(valign=Gtk.Align.CENTER, css_classes=["cal-dot", *self._status_classes(entry, now)])
+                    )
                 content.append(dots)
         else:
             for entry in entries[:_MONTH_CELL_ITEMS]:
                 item = Gtk.Box(spacing=4)
-                item.append(Gtk.Box(valign=Gtk.Align.CENTER, css_classes=["cal-dot", *self._status_classes(entry, now)]))
-                item.append(Gtk.Label(label=f"{self._name(entry)} {entry.number}", ellipsize=Pango.EllipsizeMode.END, xalign=0, css_classes=["caption"]))
+                item.append(
+                    Gtk.Box(valign=Gtk.Align.CENTER, css_classes=["cal-dot", *self._status_classes(entry, now)])
+                )
+                item.append(
+                    Gtk.Label(
+                        label=f"{self._name(entry)} {entry.number}",
+                        ellipsize=Pango.EllipsizeMode.END,
+                        xalign=0,
+                        css_classes=["caption"],
+                    )
+                )
                 content.append(item)
             if len(entries) > _MONTH_CELL_ITEMS:
                 content.append(
-                    Gtk.Label(label=f"+{len(entries) - _MONTH_CELL_ITEMS} more", xalign=0, css_classes=["caption", "dim-label"])
+                    Gtk.Label(
+                        label=f"+{len(entries) - _MONTH_CELL_ITEMS} more",
+                        xalign=0,
+                        css_classes=["caption", "dim-label"],
+                    )
                 )
         cell = Gtk.Button(child=content, css_classes=["flat", "cal-cell"])
         if self.compact:
@@ -420,8 +461,12 @@ class CalendarView(Adw.Bin):
 
     def _legend(self) -> Gtk.Widget:
         legend = Gtk.FlowBox(
-            selection_mode=Gtk.SelectionMode.NONE, halign=Gtk.Align.CENTER, max_children_per_line=5,
-            column_spacing=12, margin_top=4, margin_bottom=4,
+            selection_mode=Gtk.SelectionMode.NONE,
+            halign=Gtk.Align.CENTER,
+            max_children_per_line=5,
+            column_spacing=12,
+            margin_top=4,
+            margin_bottom=4,
         )
         for classes, label in (
             (["upcoming"], "Upcoming"),

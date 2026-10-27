@@ -1,9 +1,9 @@
 import pytest
+from helpers import FakeHttp, fixture_json, json_response
 
 from anical.db.database import connect, migrate
 from anical.db.repository import LibraryRepository
 from anical.providers.mal import MalClient
-from helpers import FakeHttp, fixture_json, json_response
 
 
 class FakeClock:

@@ -22,6 +22,8 @@ from anical.platform import System, current
 
 @dataclass(frozen=True)
 class AppPaths:
+    """Where AniCal keeps its library, cache and runtime files on this system."""
+
     data: Path
     cache: Path
     runtime: Path

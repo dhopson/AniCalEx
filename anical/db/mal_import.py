@@ -77,21 +77,19 @@ def apply_mal_list(conn: sqlite3.Connection, result: MalListResult, now: int) ->
     assignments = ", ".join(f"{c} = ?" for c in _SOURCE_COLUMNS)
 
     with transaction(conn):
-        batch_id = conn.execute(
-            "INSERT INTO import_batch (kind, started_at) VALUES ('mal_list', ?)", (now,)
-        ).lastrowid
+        batch_id = conn.execute("INSERT INTO import_batch (kind, started_at) VALUES ('mal_list', ?)", (now,)).lastrowid
         for entry in result.entries:
             values = _source_values(entry)
             existing = conn.execute(
                 f"""SELECT a.id, a.metadata_source, a.in_library, {", ".join("a." + c for c in _SOURCE_COLUMNS)}
                     FROM external_id x JOIN anime a ON a.id = x.anime_id
-                    WHERE x.provider = 'mal' AND x.ext_id = ?""",
+                    WHERE x.provider = 'mal' AND x.ext_id = ?""",  # noqa: S608 - constant column lists and ? placeholders only
                 (str(entry.anime.mal_id),),
             ).fetchone()
             if existing is None:
                 anime_id = conn.execute(
                     f"""INSERT INTO anime ({columns}, metadata_source, added_manually, created_at, updated_at)
-                        VALUES ({", ".join("?" * len(_SOURCE_COLUMNS))}, 'mal', 0, ?, ?)""",
+                        VALUES ({", ".join("?" * len(_SOURCE_COLUMNS))}, 'mal', 0, ?, ?)""",  # noqa: S608 - constant column lists and ? placeholders only
                     (*values, now, now),
                 ).lastrowid
                 conn.execute(
@@ -107,7 +105,7 @@ def apply_mal_list(conn: sqlite3.Connection, result: MalListResult, now: int) ->
                         conn.execute("UPDATE anime SET cover_path = NULL WHERE id = ?", (anime_id,))
                     conn.execute(
                         f"""UPDATE anime SET {assignments}, metadata_source = 'mal', in_library = 1, updated_at = ?
-                            WHERE id = ?""",
+                            WHERE id = ?""",  # noqa: S608 - constant column lists and ? placeholders only
                         (*values, now, anime_id),
                     )
                     updated += 1
@@ -139,12 +137,10 @@ def apply_mal_list(conn: sqlite3.Connection, result: MalListResult, now: int) ->
         placeholders = ",".join("?" * len(seen))
         removed = conn.execute(
             f"""UPDATE mal_list_entry SET list_status = 'removed', imported_at = ?
-                WHERE list_status != 'removed' AND anime_id NOT IN ({placeholders})""",
+                WHERE list_status != 'removed' AND anime_id NOT IN ({placeholders})""",  # noqa: S608 - constant column lists and ? placeholders only
             (now, *seen),
         ).rowcount
 
         summary = ImportSummary(added, updated, unchanged, removed, progress, result.skipped)
-        conn.execute(
-            "UPDATE import_batch SET summary_json = ? WHERE id = ?", (json.dumps(summary.__dict__), batch_id)
-        )
+        conn.execute("UPDATE import_batch SET summary_json = ? WHERE id = ?", (json.dumps(summary.__dict__), batch_id))
     return summary

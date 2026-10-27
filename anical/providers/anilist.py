@@ -76,6 +76,10 @@ def _chunks(values: Sequence[int], size: int) -> Iterable[list[int]]:
 
 
 class AniListClient:
+    """AniList's GraphQL API: airing schedules looked up by MAL ID.
+
+    Requests are paced under the rate limit and retried when throttled."""
+
     def __init__(
         self,
         http: HttpClient,

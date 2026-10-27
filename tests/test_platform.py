@@ -136,7 +136,7 @@ def test_keychain_errors_become_token_store_errors():
 
 # Finding ani-cli, mpv and Git Bash (D23)
 
-from anical.platform.anicli import find_ani_cli, find_bash, find_player  # noqa: E402
+from anical.platform.anicli import find_ani_cli, find_bash, find_player
 
 
 def touch(path: Path) -> Path:
@@ -179,10 +179,10 @@ def test_git_bash_search_order(tmp_path):
     program_files = tmp_path / "Program Files"
     default = touch(program_files / "Git" / "bin" / "bash.exe")
     env = {"ProgramFiles": str(program_files), "LOCALAPPDATA": str(tmp_path / "Local")}
-    assert find_bash(None, tmp_path, env, lambda: []) == str(default)
+    assert find_bash(None, tmp_path, env, list) == str(default)
     registered = touch(tmp_path / "D" / "Git" / "bin" / "bash.exe")
     assert find_bash(None, tmp_path, env, lambda: [tmp_path / "D" / "Git"]) == str(registered)
-    assert find_bash(str(tmp_path / "nope.exe"), tmp_path, env, lambda: []) is None
+    assert find_bash(str(tmp_path / "nope.exe"), tmp_path, env, list) is None
 
 
 # Notifications through a helper program (Windows route, D24)
@@ -220,7 +220,9 @@ def test_helper_sender_routes_clicks_to_app_actions(tmp_path):
     app = FakeApp()
     sender = HelperNotifierSender(app, program)
     assert sender.ready.wait(10)
-    sender("available-7", Notice("Show: Episode 3", "body", "app.show-anime", 5, (Button("Play", "app.play-episode", 7),)))
+    sender(
+        "available-7", Notice("Show: Episode 3", "body", "app.show-anime", 5, (Button("Play", "app.play-episode", 7),))
+    )
     deadline = time.monotonic() + 10
     while len(app.activated) < 2 and time.monotonic() < deadline:
         GLib.MainContext.default().iteration(False)
@@ -229,12 +231,15 @@ def test_helper_sender_routes_clicks_to_app_actions(tmp_path):
 
 # Install scripts in a terminal (setup wizard)
 
-from anical.platform.terminal import TerminalError, install_script, terminal_command  # noqa: E402
+from anical.platform.terminal import TerminalError, install_script, terminal_command
 
 
 def test_install_scripts_are_copied_executable(tmp_path):
-    for system, name in ((System.LINUX, "install-linux.sh"), (System.MACOS, "install-macos.command"),
-                         (System.WINDOWS, "install-windows.ps1")):
+    for system, name in (
+        (System.LINUX, "install-linux.sh"),
+        (System.MACOS, "install-macos.command"),
+        (System.WINDOWS, "install-windows.ps1"),
+    ):
         script = install_script(tmp_path / "setup dir", system)
         assert script.name == name and script.stat().st_size > 0
         if sys.platform != "win32":
@@ -245,7 +250,11 @@ def test_terminal_commands_per_system(tmp_path):
     script = install_script(tmp_path, System.LINUX)
     found = {"gnome-terminal", "xterm"}
     assert terminal_command(script, ["mpv"], System.LINUX, lambda n: n if n in found else None) == [
-        "gnome-terminal", "--", "bash", str(script), "mpv"
+        "gnome-terminal",
+        "--",
+        "bash",
+        str(script),
+        "mpv",
     ]
     with pytest.raises(TerminalError):
         terminal_command(script, ["mpv"], System.LINUX, lambda n: None)

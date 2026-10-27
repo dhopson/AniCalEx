@@ -21,9 +21,7 @@ def states(repo, anime_id):
 
 
 def test_manual_entry_without_external_ids(repo):
-    anime_id = repo.create_anime(
-        AnimeDraft(title="Frieren: Beyond Journey’s End", total_episodes=3, tags=("fantasy",))
-    )
+    anime_id = repo.create_anime(AnimeDraft(title="Frieren: Beyond Journey’s End", total_episodes=3, tags=("fantasy",)))
     anime = repo.get_anime(anime_id)
     assert anime.title == "Frieren: Beyond Journey’s End"
     assert anime.added_manually
@@ -116,7 +114,7 @@ def test_delete_cascades(repo, conn):
     repo.set_watch_state(ids(repo.episodes(anime_id), 1), WatchState.WATCHED)
     repo.delete_anime(anime_id)
     for table in ("anime", "episode", "watch_event", "tag", "external_id"):
-        assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
+        assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0  # noqa: S608 - fixed table names
 
 
 def test_updates_bump_timestamp(repo, clock):

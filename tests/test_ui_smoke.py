@@ -9,31 +9,41 @@ import pytest
 gi = pytest.importorskip("gi")
 gi.require_version("Gtk", "4.0")
 gi.require_version("Adw", "1")
-from gi.repository import Adw, GLib, Gtk  # noqa: E402
+from gi.repository import Adw, GLib, Gtk
 
 if not Gtk.init_check():
     pytest.skip("no display available", allow_module_level=True)
 Adw.init()
 
-from anical.db.schedule import ScheduleRepository  # noqa: E402
-from anical.db.playback import PlaybackRepository  # noqa: E402
-from anical.domain.playback import PlaybackMapping  # noqa: E402
-from anical.db.settings import PLAYBACK_AUTO_MARK, PLAYBACK_EXECUTABLE, PLAYBACK_PLAYER  # noqa: E402
-from anical.db.settings import DISPLAY_ENGLISH_TITLES, DISPLAY_TIMEZONE, MAL_CLIENT_ID, MAL_MODE, MAL_USERNAME, SettingsRepository  # noqa: E402
-from anical.domain.models import AiringStatus, AnimeDraft, WatchState  # noqa: E402
-from anical.net.http import NetworkError, Response  # noqa: E402
-from anical.providers.anilist import AniListClient  # noqa: E402
-from anical.sync.mal_sync import MalSyncService  # noqa: E402
-from anical.sync.schedule_sync import fetch_schedules  # noqa: E402
-from anical.ui.air_dates import AirDatesDialog  # noqa: E402
-from anical.ui.display import DisplaySettings  # noqa: E402
-from anical.ui.editor import AnimeEditorDialog  # noqa: E402
-from anical.ui.playback_controller import PlaybackController  # noqa: E402
-from anical.ui.preferences import PreferencesDialog  # noqa: E402
-from anical.ui.show_page import ShowPage  # noqa: E402
-from anical.ui.sync_controller import SyncController  # noqa: E402
-from anical.ui.window import MainWindow  # noqa: E402
-from helpers import FakeHttp, MemoryTokenStore, fixture_json, json_response  # noqa: E402
+from helpers import FakeHttp, MemoryTokenStore, fixture_json, json_response
+
+from anical.db.playback import PlaybackRepository
+from anical.db.schedule import ScheduleRepository
+from anical.db.settings import (
+    DISPLAY_ENGLISH_TITLES,
+    DISPLAY_TIMEZONE,
+    MAL_CLIENT_ID,
+    MAL_MODE,
+    MAL_USERNAME,
+    PLAYBACK_AUTO_MARK,
+    PLAYBACK_EXECUTABLE,
+    PLAYBACK_PLAYER,
+    SettingsRepository,
+)
+from anical.domain.models import AiringStatus, AnimeDraft, WatchState
+from anical.domain.playback import PlaybackMapping
+from anical.net.http import NetworkError, Response
+from anical.providers.anilist import AniListClient
+from anical.sync.mal_sync import MalSyncService
+from anical.sync.schedule_sync import fetch_schedules
+from anical.ui.air_dates import AirDatesDialog
+from anical.ui.display import DisplaySettings
+from anical.ui.editor import AnimeEditorDialog
+from anical.ui.playback_controller import PlaybackController
+from anical.ui.preferences import PreferencesDialog
+from anical.ui.show_page import ShowPage
+from anical.ui.sync_controller import SyncController
+from anical.ui.window import MainWindow
 
 
 def drain():
@@ -62,6 +72,7 @@ def settings(conn, clock):
 @pytest.fixture
 def controller(repo, settings, http, clock, tmp_path):
     service = MalSyncService(http, MemoryTokenStore(), clock=clock)
+
     def fetch_without_pacing(http, targets, now):
         return fetch_schedules(http, targets, now, client=AniListClient(http, sleep=lambda s: None))
 
@@ -85,9 +96,7 @@ def playback(repo, settings, conn, tmp_path):
 
 @pytest.fixture
 def window(repo, controller, display, playback):
-    win = MainWindow(
-        application=None, repository=repo, sync_controller=controller, display=display, playback=playback
-    )
+    win = MainWindow(application=None, repository=repo, sync_controller=controller, display=display, playback=playback)
     yield win
     win.destroy()
     drain()
@@ -167,8 +176,13 @@ def test_sync_end_to_end(window, controller, settings, http, repo, clock):
         json_response(fixture_json("mal_animelist_page1.json")),
         json_response(fixture_json("mal_animelist_page2.json")),
         # AniList: link the two still-airing shows, then their schedule window.
-        anilist_page("media", [{"id": 5001, "idMal": 99001, "status": "RELEASING", "episodes": None},
-                               {"id": 5002, "idMal": 99002, "status": "NOT_YET_RELEASED", "episodes": 1}]),
+        anilist_page(
+            "media",
+            [
+                {"id": 5001, "idMal": 99001, "status": "RELEASING", "episodes": None},
+                {"id": 5002, "idMal": 99002, "status": "NOT_YET_RELEASED", "episodes": 1},
+            ],
+        ),
         anilist_page("airingSchedules", [{"mediaId": 5001, "episode": 4, "airingAt": now + 3600}]),
         Response(200, b"\xff\xd8jpeg", {"Content-Type": "image/jpeg"}),
         NetworkError("offline"),  # second cover: stop quietly
@@ -384,11 +398,11 @@ def first_episode(repo, title="Show", **draft):
 @launches_ani_cli
 def test_playing_to_the_end_marks_watched(playback, repo, conn, monkeypatch):
     monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof","percent":96.5,"position":1380,"duration":1420}')
-    anime_id, episode = first_episode(repo)
+    _, episode = first_episode(repo)
     report = play_and_wait(playback, episode.id)
     assert report.result.outcome.value == "watched" and report.marked
     assert repo.watch_state(episode.id) is WatchState.WATCHED
-    source, = conn.execute("SELECT source FROM watch_event WHERE episode_id = ?", (episode.id,)).fetchone()
+    (source,) = conn.execute("SELECT source FROM watch_event WHERE episode_id = ?", (episode.id,)).fetchone()
     assert source == "playback"
     assert conn.execute("SELECT end_reason FROM playback_session").fetchone()[0] == "eof"
     assert not list((Path(playback._runtime_dir)).glob("session-*"))  # cleaned up
@@ -537,7 +551,9 @@ def wizard_parts(controller, playback, settings, tmp_path, window):
     made = []
 
     def make():
-        wizard = SetupWizard(controller, playback, settings, tmp_path / "run", on_finished=lambda: finished.append(True))
+        wizard = SetupWizard(
+            controller, playback, settings, tmp_path / "run", on_finished=lambda: finished.append(True)
+        )
         wizard.present(window)  # as the app does
         made.append(wizard)
         return wizard
@@ -633,3 +649,14 @@ def test_wizard_playback_step_checks_and_installs(wizard_parts, playback, settin
     assert "Let’s make sure" in wizard._bubbles["playback"].get_label()
     mpv.install.emit("clicked")
     assert opened == [["mpv"]]
+
+
+def test_required_programs_add_git_bash_on_windows(playback, monkeypatch):
+    import anical.ui.playback_controller as playback_controller
+    from anical.platform import System
+
+    assert [p.name for p in playback.required_programs()] == ["ani-cli", "mpv"]
+    monkeypatch.setattr(playback_controller, "current", lambda: System.WINDOWS)
+    programs = playback.required_programs()
+    assert [p.name for p in programs] == ["Git Bash", "ani-cli", "mpv"]  # Git Bash first: ani-cli runs in it
+    assert [p.install_key for p in programs] == ["git", "ani-cli", "mpv"]  # what the install scripts accept

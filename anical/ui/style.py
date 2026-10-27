@@ -51,7 +51,11 @@ _CSS = """
   color: var(--warning-color);
   background-color: color-mix(in srgb, var(--warning-bg-color) 15%, transparent);
 }
-.cal-status.watched { color: inherit; opacity: 0.6; background-color: color-mix(in srgb, currentColor 8%, transparent); }
+.cal-status.watched {
+  color: inherit;
+  opacity: 0.6;
+  background-color: color-mix(in srgb, currentColor 8%, transparent);
+}
 
 /* Grid lines: the text color at low opacity, so they sit just off the background in both styles. */
 .cal-column {
@@ -73,7 +77,7 @@ button.cal-cell.compact { min-height: 44px; }
 .cal-today { color: var(--accent-color); font-weight: bold; }
 .cal-outside { opacity: 0.45; }
 
-/* Setup wizard: Koyomi's speech bubble, with a tail pointing down at her. */
+/* Setup wizard: the mascot's speech bubble, with a tail pointing down at it. */
 .wizard-bubble {
   background-color: var(--card-bg-color);
   color: var(--card-fg-color);
@@ -81,7 +85,7 @@ button.cal-cell.compact { min-height: 44px; }
   padding: 14px 16px;
   box-shadow: 0 1px 3px color-mix(in srgb, black 18%, transparent);
 }
-/* A triangle under the bubble, pointing down at Koyomi: two half-squares cut on
+/* A triangle under the bubble, pointing down at the mascot: two half-squares cut on
    the diagonal. GTK ignores negative margins, so it can't overlap the bubble. */
 .wizard-bubble-tail {
   min-width: 20px;
@@ -94,7 +98,12 @@ button.cal-cell.compact { min-height: 44px; }
   background-position: left top, right top;
   background-repeat: no-repeat;
 }
-.wizard-step-dot { min-width: 8px; min-height: 8px; border-radius: 4px; background-color: color-mix(in srgb, currentColor 20%, transparent); }
+.wizard-step-dot {
+  min-width: 8px;
+  min-height: 8px;
+  border-radius: 4px;
+  background-color: color-mix(in srgb, currentColor 20%, transparent);
+}
 .wizard-step-dot.current { background-color: var(--accent-bg-color); min-width: 20px; }
 .wizard-step-dot.done { background-color: color-mix(in srgb, var(--accent-bg-color) 50%, transparent); }
 """

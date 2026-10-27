@@ -41,13 +41,22 @@ def cover(path: str | None, title: str, width: int, height: int) -> Gtk.Widget:
     texture = _texture(path) if path else None
     if texture is not None:
         picture = _FixedPicture(
-            width, height, paintable=texture, content_fit=Gtk.ContentFit.COVER, can_shrink=True,
-            valign=Gtk.Align.CENTER, overflow=Gtk.Overflow.HIDDEN, css_classes=["cover"],
+            width,
+            height,
+            paintable=texture,
+            content_fit=Gtk.ContentFit.COVER,
+            can_shrink=True,
+            valign=Gtk.Align.CENTER,
+            overflow=Gtk.Overflow.HIDDEN,
+            css_classes=["cover"],
         )
         picture.set_alternative_text(f"Cover of {title}")
         return picture
     label = Gtk.Label(
-        label=_initials(title), width_request=width, height_request=height, valign=Gtk.Align.CENTER,
+        label=_initials(title),
+        width_request=width,
+        height_request=height,
+        valign=Gtk.Align.CENTER,
         css_classes=["cover-placeholder", "title-4" if width >= 80 else "caption-heading"],
     )
     label.update_property([Gtk.AccessibleProperty.LABEL], [f"No cover for {title}"])

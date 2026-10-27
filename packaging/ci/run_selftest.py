@@ -9,7 +9,6 @@ report was written. Standard library only: it runs on the system Python while
 the build toolchain is hidden.
 """
 
-import json
 import os
 import subprocess
 import sys
@@ -68,7 +67,8 @@ def main():
         path = os.path.join(out_dir, name)
         if os.path.exists(path):
             print(f"--- {name}")
-            print(open(path, encoding="utf-8", errors="replace").read())
+            with open(path, encoding="utf-8", errors="replace") as report:
+                print(report.read())
     return code
 
 

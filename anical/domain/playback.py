@@ -139,7 +139,9 @@ def build_launch(
     the folder holding anical-pick and anical-mpv; it goes first on PATH."""
     episode = mapping.anicli_episode(episode_number)
     if episode < 1:
-        raise PlaybackError(f"Episode {episode_number} with offset {mapping.episode_offset} is not a valid ani-cli episode")
+        raise PlaybackError(
+            f"Episode {episode_number} with offset {mapping.episode_offset} is not a valid ani-cli episode"
+        )
     progress_path = session_dir / "progress.json"
     argv = ([config.bash] if config.bash else []) + [executable, "--no-detach", "--exit-after-play"]
     if (mapping.mode or config.mode) == "dub":

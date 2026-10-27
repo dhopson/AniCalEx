@@ -6,6 +6,7 @@ Reference: https://myanimelist.net/apiconfig/references/authorization
 
 from __future__ import annotations
 
+import contextlib
 import http.server
 import json
 import secrets
@@ -18,10 +19,12 @@ from typing import Protocol
 from anical.net.http import HttpClient, Response
 
 AUTHORIZE_URL = "https://myanimelist.net/v1/oauth2/authorize"
-TOKEN_URL = "https://myanimelist.net/v1/oauth2/token"
+TOKEN_URL = "https://myanimelist.net/v1/oauth2/token"  # noqa: S105 - a URL, not a password
 # Must match the redirect URL registered for the client ID exactly.
 REDIRECT_PORT = 8765
 REDIRECT_URI = f"http://localhost:{REDIRECT_PORT}/callback"
+# What the saved login is called in the keyring, Keychain or DPAPI file.
+TOKEN_LABEL = "AniCal MyAnimeList login"  # noqa: S105 - a label, not a password
 # Refresh a little before the stated expiry to avoid racing it.
 EXPIRY_MARGIN_S = 300
 
@@ -36,6 +39,8 @@ class LoginCancelled(OAuthError):
 
 @dataclass(frozen=True)
 class Token:
+    """A MyAnimeList login: the access and refresh tokens, and when the access token expires."""
+
     access_token: str
     refresh_token: str
     expires_at: int
@@ -51,12 +56,25 @@ class Token:
         data = json.loads(text)
         return cls(str(data["access_token"]), str(data["refresh_token"]), int(data["expires_at"]))
 
+    @classmethod
+    def from_saved(cls, text: str | None) -> Token | None:
+        """A login read back from a token store; None when nothing usable was saved
+        (empty, or damaged), which the app treats as logged out."""
+        if not text:
+            return None
+        try:
+            return cls.from_json(text)
+        except (ValueError, KeyError, TypeError):
+            return None
+
 
 class TokenStoreError(Exception):
     """The secure store couldn't be read or written."""
 
 
 class TokenStore(Protocol):
+    """Where the login is kept between runs: the keyring, a DPAPI file or the Keychain (anical.platform.secrets)."""
+
     def load(self) -> Token | None: ...
     def save(self, token: Token) -> None: ...
     def clear(self) -> None: ...
@@ -180,10 +198,8 @@ class CallbackReceiver:
             self._servers.append(http.server.HTTPServer(("127.0.0.1", port), Handler))
         except OSError as e:
             raise OAuthError(f"Can’t listen on port {port} for the login reply: {e.strerror}") from e
-        try:
+        with contextlib.suppress(OSError):  # no IPv6 loopback; 127.0.0.1 is enough
             self._servers.append(IPv6Server(("::1", port), Handler))
-        except OSError:
-            pass  # no IPv6 loopback; 127.0.0.1 is enough
         for server in self._servers:
             threading.Thread(target=server.serve_forever, daemon=True).start()
 

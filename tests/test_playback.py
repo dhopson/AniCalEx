@@ -27,6 +27,7 @@ from anical.playback import install_helpers
 
 FAKE_ANI_CLI = str(Path(__file__).parent / "fake_ani_cli.py")
 FAKE_MPV = str(Path(__file__).parent / "fake_mpv.py")
+FAKE_CONFIG = PlaybackConfig(player=FAKE_MPV)
 RED = "\033[1;31m{}\033[0m"
 
 
@@ -37,7 +38,7 @@ def helpers(tmp_path):
     return install_helpers(tmp_path / "helpers")
 
 
-def launch_for(tmp_path, helpers, mapping=None, episode=5, config=PlaybackConfig(player=FAKE_MPV), session=None):
+def launch_for(tmp_path, helpers, mapping=None, episode=5, config=FAKE_CONFIG, session=None):
     session = session or tmp_path / "session"
     session.mkdir(exist_ok=True)
     mapping = mapping or PlaybackMapping(1, "Some Show")
@@ -77,7 +78,7 @@ def test_sanitize_query(title, query):
 
 
 def test_launch_uses_an_argument_vector(tmp_path, helpers):
-    title = "Show; rm -rf ~ $(id) `x` \"q\""
+    title = 'Show; rm -rf ~ $(id) `x` "q"'
     mapping = PlaybackMapping(1, title, "Chosen", episode_offset=12, mode="dub")
     launch = launch_for(tmp_path, helpers, mapping, episode=3, config=PlaybackConfig(quality="720p", player="/opt/mpv"))
     assert launch.argv == [FAKE_ANI_CLI, "--no-detach", "--exit-after-play", "--dub", "-q", "720p", "-e", "15", title]
@@ -123,7 +124,7 @@ def test_decide(exit_code, progress, stderr, outcome):
 
 def test_launching_alone_never_counts_as_watched():
     assert decide(0, Progress("quit", 0.4, 5, 1400), "").outcome is Outcome.PARTIAL
-    assert not decide(0, None, "").outcome is Outcome.WATCHED
+    assert decide(0, None, "").outcome is not Outcome.WATCHED
 
 
 def test_error_message_prefers_ani_cli_die_output():
@@ -181,7 +182,8 @@ def test_player_exit_status_comes_back(tmp_path, helpers):
 def test_remembered_title_is_picked_automatically(tmp_path, helpers):
     mapping = PlaybackMapping(1, "Show", result_title="Show Season 2")
     code, progress, _ = run(
-        launch_for(tmp_path, helpers, mapping), results="Show|Show Season 2|Show Movie",
+        launch_for(tmp_path, helpers, mapping),
+        results="Show|Show Season 2|Show Movie",
         progress='{"reason":"quit","percent":10}',
     )
     assert code == 0 and progress.percent == 10
@@ -217,8 +219,9 @@ def test_unreleased_episode(tmp_path, helpers):
 
 def test_picker_quits_ani_cli_menu_after_non_mpv_playback(helpers):
     picker = helpers[0] / "anical-pick"
-    reply = subprocess.run([str(picker), "Playing episode 5 of Show... "], input="next\nreplay\nquit\n",
-                           capture_output=True, text=True)
+    reply = subprocess.run(
+        [str(picker), "Playing episode 5 of Show... "], input="next\nreplay\nquit\n", capture_output=True, text=True
+    )
     assert reply.stdout.strip() == "quit"
 
 
@@ -226,8 +229,10 @@ def test_picker_reads_and_answers_utf8(tmp_path, helpers):
     # The picker forces UTF-8 itself; Windows would otherwise use the console code page (D23).
     env = {**os.environ, "ANICAL_PICK_TITLE": "Spike Show: Kōhen"}
     reply = subprocess.run(
-        [str(helpers[0] / "anical-pick"), "Select anime: "], input="1 Spike Show\n2 Spike Show: Kōhen\n".encode(),
-        capture_output=True, env=env,
+        [str(helpers[0] / "anical-pick"), "Select anime: "],
+        input="1 Spike Show\n2 Spike Show: Kōhen\n".encode(),
+        capture_output=True,
+        env=env,
     )
     assert reply.stdout == "2 Spike Show: Kōhen\n".encode()
 

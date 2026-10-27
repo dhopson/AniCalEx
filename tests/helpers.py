@@ -49,4 +49,3 @@ class MemoryTokenStore:
 
     def clear(self):
         self.token = None
-

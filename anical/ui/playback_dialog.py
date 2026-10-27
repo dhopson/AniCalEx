@@ -14,6 +14,8 @@ _MODES = [None, "sub", "dub"]
 
 
 class PlaybackSettingsDialog(Adw.Dialog):
+    """A show's playback settings: search text, chosen match, episode offset, sub or dub."""
+
     def __init__(
         self, playback: PlaybackRepository, anime: Anime, mapping: PlaybackMapping, on_saved: Callable[[], None]
     ):
@@ -36,7 +38,9 @@ class PlaybackSettingsDialog(Adw.Dialog):
             "Added to episode numbers when asking ani-cli, e.g. 12 if ani-cli numbers this season from 13"
         )
         self._offset.set_value(mapping.episode_offset)
-        self._mode = Adw.ComboRow(title="Audio", model=Gtk.StringList.new(["Default (Preferences)", "Subtitled", "Dubbed"]))
+        self._mode = Adw.ComboRow(
+            title="Audio", model=Gtk.StringList.new(["Default (Preferences)", "Subtitled", "Dubbed"])
+        )
         self._mode.set_selected(_MODES.index(mapping.mode) if mapping.mode in _MODES else 0)
 
         page = Adw.PreferencesPage()
@@ -72,7 +76,10 @@ class PlaybackSettingsDialog(Adw.Dialog):
         result_title = self._result_title if query == self._mapping.query else None
         self._playback.save_mapping(
             PlaybackMapping(
-                self._mapping.anime_id, query, result_title, int(self._offset.get_value()),
+                self._mapping.anime_id,
+                query,
+                result_title,
+                int(self._offset.get_value()),
                 _MODES[self._mode.get_selected()],
             )
         )

@@ -1,3 +1,5 @@
+"""The dialog for adding a show to the library, or editing one."""
+
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -24,12 +26,18 @@ def _optional_int(text: str, field: str, errors: dict[str, str]) -> int | None:
 class _TextArea(Gtk.Frame):
     def __init__(self, text: str | None, accessible_name: str):
         self._view = Gtk.TextView(
-            wrap_mode=Gtk.WrapMode.WORD_CHAR, accepts_tab=False,
-            top_margin=8, bottom_margin=8, left_margin=10, right_margin=10,
+            wrap_mode=Gtk.WrapMode.WORD_CHAR,
+            accepts_tab=False,
+            top_margin=8,
+            bottom_margin=8,
+            left_margin=10,
+            right_margin=10,
         )
         self._view.get_buffer().set_text(text or "")
         self._view.update_property([Gtk.AccessibleProperty.LABEL], [accessible_name])
-        super().__init__(child=Gtk.ScrolledWindow(child=self._view, min_content_height=90, propagate_natural_height=True))
+        super().__init__(
+            child=Gtk.ScrolledWindow(child=self._view, min_content_height=90, propagate_natural_height=True)
+        )
 
     def get_text(self) -> str:
         buffer = self._view.get_buffer()
@@ -55,13 +63,15 @@ class AnimeEditorDialog(Adw.Dialog):
         self._status = Adw.ComboRow(title="Airing Status", model=Gtk.StringList.new([s.label for s in _STATUSES]))
         self._status.set_selected(_STATUSES.index(anime.airing_status if anime else AiringStatus.UNKNOWN))
         self._episodes = Adw.EntryRow(
-            title="Total Episodes (blank if unknown)", input_purpose=Gtk.InputPurpose.DIGITS,
+            title="Total Episodes (blank if unknown)",
+            input_purpose=Gtk.InputPurpose.DIGITS,
             text=str(anime.total_episodes) if anime and anime.total_episodes is not None else "",
         )
         self._start = Adw.EntryRow(title="Start Date (YYYY-MM-DD)", text=(anime and anime.start_date) or "")
         self._end = Adw.EntryRow(title="End Date (YYYY-MM-DD)", text=(anime and anime.end_date) or "")
         self._mal_id = Adw.EntryRow(
-            title="MyAnimeList ID (optional)", input_purpose=Gtk.InputPurpose.DIGITS,
+            title="MyAnimeList ID (optional)",
+            input_purpose=Gtk.InputPurpose.DIGITS,
             text=str(anime.mal_id) if anime and anime.mal_id else "",
         )
         self._tags = Adw.EntryRow(title="Tags (comma separated)", text=", ".join(anime.tags) if anime else "")

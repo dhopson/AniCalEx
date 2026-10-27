@@ -9,7 +9,6 @@ from pathlib import Path
 
 from anical.domain.playback import HistoryEntry, PlaybackError, parse_history
 
-
 HELPERS = ("anical-pick", "anical-mpv")
 
 

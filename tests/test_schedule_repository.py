@@ -79,7 +79,9 @@ def test_unknown_mal_ids_and_conflicting_links_are_ignored(schedule, imported, c
 
 def test_broadcast_projection_only_without_better_data(schedule, imported, conn, repo):
     # Give the ongoing show an exact start date so it can be projected.
-    conn.execute("UPDATE anime SET start_date = '2026-10-04', broadcast_time = '23:30' WHERE id = ?", (imported[99001],))
+    conn.execute(
+        "UPDATE anime SET start_date = '2026-10-04', broadcast_time = '23:30' WHERE id = ?", (imported[99001],)
+    )
     assert schedule.project_broadcasts(NOW) == 1
     projected = schedule.calendar_entries(0, WINDOW_END)
     assert projected and all(e.precision is Precision.ESTIMATED for e in projected)

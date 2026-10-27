@@ -1,9 +1,9 @@
 import pytest
+from helpers import FakeHttp, fixture_json, json_response
 
 from anical.domain.models import AiringStatus, MediaType
 from anical.net.http import NetworkError, Response
 from anical.providers.mal import API_BASE, MalAuthError, MalClient, MalError, parse_anime
-from helpers import FakeHttp, fixture_json, json_response
 
 
 def client(http, token=None, sleeps=None):
@@ -109,7 +109,9 @@ def test_requests_are_throttled():
     assert sleeps == [pytest.approx(0.8)]
 
 
-@pytest.mark.parametrize("node", [None, {}, {"id": "5", "title": "x"}, {"id": 5, "title": "  "}, {"id": -1, "title": "x"}])
+@pytest.mark.parametrize(
+    "node", [None, {}, {"id": "5", "title": "x"}, {"id": 5, "title": "  "}, {"id": -1, "title": "x"}]
+)
 def test_invalid_nodes_are_rejected(node):
     assert parse_anime(node) is None
 

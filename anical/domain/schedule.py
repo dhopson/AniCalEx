@@ -102,4 +102,4 @@ def manual_series(
         raise ValidationError(errors)
     first = datetime.datetime(day.year, day.month, day.day, int(match[1]), int(match[2]), tzinfo=tz)
     count = 1 if last_episode is None else last_episode - first_episode + 1
-    return list(zip(range(first_episode, first_episode + count), weekly_series(first, count)))
+    return list(zip(range(first_episode, first_episode + count), weekly_series(first, count), strict=True))

@@ -8,6 +8,7 @@ GLib names the local zone differently per OS (spike S1):
 
 from __future__ import annotations
 
+import contextlib
 import functools
 import os
 import zoneinfo
@@ -53,8 +54,6 @@ def system_timezone_name() -> str:
     from gi.repository import GLib
 
     candidates = [GLib.TimeZone.new_local().get_identifier(), os.environ.get("TZ")]
-    try:
+    with contextlib.suppress(OSError):
         candidates.append(os.path.realpath("/etc/localtime"))
-    except OSError:
-        pass
     return resolve(candidates, available_timezones())

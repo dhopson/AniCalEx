@@ -17,6 +17,8 @@ _JAPAN = "Asia/Tokyo"
 
 
 class AirDatesDialog(Adw.Dialog):
+    """Sets a show's air dates by hand: one episode, or a weekly series."""
+
     def __init__(
         self,
         schedule: ScheduleRepository,
@@ -51,7 +53,9 @@ class AirDatesDialog(Adw.Dialog):
 
         page = Adw.PreferencesPage()
         group = Adw.PreferencesGroup(
-            description="Your dates take priority over MyAnimeList and AniList. You can clear them from the show’s menu."
+            description=(
+                "Your dates take priority over MyAnimeList and AniList. You can clear them from the show’s menu."
+            )
         )
         for row in (self._first, self._date, self._time, self._zone, self._repeat, self._last):
             group.add(row)

@@ -79,6 +79,8 @@ def _row_value(row: sqlite3.Row, field: str):
 
 
 class LibraryRepository:
+    """The library in the database: shows, episodes, watch state, tags and external IDs."""
+
     def __init__(self, conn: sqlite3.Connection, clock: Clock = system_clock):
         self._conn = conn
         self._clock = clock
@@ -234,9 +236,7 @@ class LibraryRepository:
 
     def covers_to_fetch(self) -> list[tuple[int, str]]:
         """(anime_id, url) for shows with a cover URL but no stored image."""
-        rows = self._conn.execute(
-            "SELECT id, cover_url FROM anime WHERE cover_url IS NOT NULL AND cover_path IS NULL"
-        )
+        rows = self._conn.execute("SELECT id, cover_url FROM anime WHERE cover_url IS NOT NULL AND cover_path IS NULL")
         return [(r["id"], r["cover_url"]) for r in rows]
 
     def set_cover_paths(self, paths: Iterable[tuple[int, str]]) -> None:
@@ -268,7 +268,9 @@ class LibraryRepository:
         ).fetchone()
         if row is None:
             raise KeyError(episode_id)
-        return Episode(row["id"], row["anime_id"], row["number"], EpisodeKind(row["kind"]), row["title"], WatchState(row["state"]))
+        return Episode(
+            row["id"], row["anime_id"], row["number"], EpisodeKind(row["kind"]), row["title"], WatchState(row["state"])
+        )
 
     def watch_state(self, episode_id: int) -> WatchState:
         row = self._conn.execute("SELECT state FROM episode_watch_state WHERE episode_id = ?", (episode_id,)).fetchone()
@@ -304,7 +306,7 @@ class LibraryRepository:
         with transaction(self._conn):
             rows = self._conn.execute(
                 f"""SELECT s.episode_id, s.anime_id FROM episode_watch_state s
-                    WHERE s.episode_id IN ({placeholders}) AND s.state != ?""",
+                    WHERE s.episode_id IN ({placeholders}) AND s.state != ?""",  # noqa: S608 - constant column lists and ? placeholders only
                 (*ids, state.value),
             ).fetchall()
             self._conn.executemany(

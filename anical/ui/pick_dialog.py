@@ -8,6 +8,8 @@ from anical.ui.playback_controller import PickRequest
 
 
 class PickDialog(Adw.Dialog):
+    """Asks which of ani-cli's search results is the show being played."""
+
     def __init__(self, request: PickRequest):
         super().__init__(title="Which Show?", content_width=480, content_height=520)
         self._request = request

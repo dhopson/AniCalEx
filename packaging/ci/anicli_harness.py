@@ -37,7 +37,7 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO))
-from anical.domain.playback import decide, parse_progress  # noqa: E402
+from anical.domain.playback import decide, parse_progress
 
 HERE = Path(__file__).resolve().parent
 QUIT_AFTER = """-- Quits partway through, like a user pressing q.
@@ -61,15 +61,19 @@ SHOWS = {"101": "Spike Show", "102": "Spike Show: Kōhen"}
 def write_fixtures(directory: Path) -> None:
     directory.mkdir(parents=True, exist_ok=True)
     films = "".join(
-        f'<div class="film-detail"><h3 class="film-name"> <a href="/spike-show-{"" if id_ == "101" else "kohen-"}{id_}" '
+        f'<div class="film-detail"><h3 class="film-name"> '
+        f'<a href="/spike-show-{"" if id_ == "101" else "kohen-"}{id_}" '
         f'title="{title}">{title}</a></h3></div>\n'
         for id_, title in SHOWS.items()
     )
-    (directory / "search.html").write_text(f"<html><body>\n{films}<div id=\"main-sidebar\"></div></body></html>", encoding="utf-8")
+    (directory / "search.html").write_text(
+        f'<html><body>\n{films}<div id="main-sidebar"></div></body></html>', encoding="utf-8"
+    )
     (directory / "empty.html").write_text("<html><body><p>No results</p></body></html>", encoding="utf-8")
     for id_, slug in (("101", "spike-show-101"), ("102", "spike-show-kohen-102")):
         items = "".join(
-            f'<a class="ep-item" data-number="{n}" data-id="{id_}{n:02d}" href="/watch/{slug}?ep={id_}{n:02d}"></a>' for n in (1, 2, 3)
+            f'<a class="ep-item" data-number="{n}" data-id="{id_}{n:02d}" href="/watch/{slug}?ep={id_}{n:02d}"></a>'
+            for n in (1, 2, 3)
         )
         (directory / f"episodes-{id_}.html").write_text(json.dumps({"html": items}), encoding="utf-8")
     embed = f"http://127.0.0.1:{PORT}/embed/mal/1/1"
@@ -80,7 +84,9 @@ def write_fixtures(directory: Path) -> None:
         encoding="utf-8",
     )
     # compact separators: ani-cli matches "src":"..." with no spaces
-    config = json.dumps({"sources": [{"src": f"http://127.0.0.1:{PORT}/master.m3u8"}], "subtitles": []}, separators=(",", ":")).encode()
+    config = json.dumps(
+        {"sources": [{"src": f"http://127.0.0.1:{PORT}/master.m3u8"}], "subtitles": []}, separators=(",", ":")
+    ).encode()
     blob = base64.b64encode(bytes(b ^ EMBED_KEY[i % len(EMBED_KEY)] for i, b in enumerate(config))).decode()
     (directory / "embed.html").write_text(f'<script>window.__P="{blob}";</script>', encoding="utf-8")
     (directory / "master.m3u8").write_text(
@@ -135,7 +141,7 @@ def find_bash() -> tuple[str | None, list[str]]:
     home = Path.home()
     candidates += [
         home / "scoop" / "apps" / "git" / "current" / "bin" / "bash.exe",
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Git" / "bin" / "bash.exe",
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Git" / "bin" / "bash.exe",
         Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Git" / "bin" / "bash.exe",
     ]
     for candidate in candidates:
@@ -271,7 +277,14 @@ def run_case(case, ctx) -> dict:
         ANICAL_SHIM_LOG=str(shim_log),
         FAKE_HIANIME=str(ctx["fixtures"]),
     )
-    argv = ([ctx["bash"]] if WINDOWS else []) + [ctx["ani_cli"], "--no-detach", "--exit-after-play", "-e", str(episode), query]
+    argv = ([ctx["bash"]] if WINDOWS else []) + [
+        ctx["ani_cli"],
+        "--no-detach",
+        "--exit-after-play",
+        "-e",
+        str(episode),
+        query,
+    ]
 
     kwargs = {"stdout": subprocess.DEVNULL, "stderr": subprocess.PIPE, "env": env}
     pty_fds = ()
@@ -385,7 +398,9 @@ def main() -> int:
         discovery["scoop_shims"] = sorted(p.name for p in shims.glob("ani-cli*")) if shims.is_dir() else None
     print(json.dumps(discovery, indent=2))
     if not (ani_cli and mpv and (bash or not WINDOWS)):
-        (args.out / "report.json").write_text(json.dumps({"passed": False, "discovery": discovery}, indent=2), encoding="utf-8")
+        (args.out / "report.json").write_text(
+            json.dumps({"passed": False, "discovery": discovery}, indent=2), encoding="utf-8"
+        )
         return 2
     if WINDOWS:
         ani_cli = ani_cli.replace("\\", "/")  # bash takes C:/... paths as they are
@@ -419,14 +434,25 @@ def main() -> int:
             continue
         result = run_case(case, ctx)
         results.append(result)
-        print(f"{'PASS' if result['ok'] else 'FAIL'} {result['case']}: {result['outcome']} in {result['seconds']} s {result['problems'] or ''}")
+        print(
+            f"{'PASS' if result['ok'] else 'FAIL'} {result['case']}: {result['outcome']} "
+            f"in {result['seconds']} s {result['problems'] or ''}"
+        )
     if server:
         server.shutdown()
 
     version = subprocess.run(
-        ([bash] if WINDOWS else []) + [ani_cli, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace"
+        ([bash] if WINDOWS else []) + [ani_cli, "--version"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     ).stdout.strip()
-    requests = (ctx["fixtures"] / "requests.log").read_text(encoding="utf-8") if (ctx["fixtures"] / "requests.log").exists() else ""
+    requests = (
+        (ctx["fixtures"] / "requests.log").read_text(encoding="utf-8")
+        if (ctx["fixtures"] / "requests.log").exists()
+        else ""
+    )
     report = {
         "passed": all(r["ok"] for r in results),
         "ani_cli_version": version,

@@ -37,6 +37,8 @@ ClientFactory = Callable[..., MalClient]
 
 
 class MalSyncService:
+    """Fetches a MyAnimeList list, by public username or for the logged-in account, refreshing the login as needed."""
+
     def __init__(
         self,
         http: HttpClient,

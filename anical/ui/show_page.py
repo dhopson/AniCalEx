@@ -1,3 +1,5 @@
+"""A show's page, opened from the library or the calendar."""
+
 from __future__ import annotations
 
 import time
@@ -5,6 +7,8 @@ from typing import TYPE_CHECKING
 
 from gi.repository import Adw, Gio, Gtk
 
+from anical.db.schedule import EpisodeAiring
+from anical.domain.calendar import format_time, local_datetime
 from anical.domain.models import (
     MAL_LIST_STATUS_LABELS,
     OVERRIDABLE_FIELDS,
@@ -14,10 +18,8 @@ from anical.domain.models import (
     EpisodeList,
     WatchState,
 )
-from anical.domain.calendar import format_time, local_datetime
-from anical.db.schedule import EpisodeAiring
-from anical.domain.schedule import AiringSource
 from anical.domain.playback import history_for
+from anical.domain.schedule import AiringSource
 from anical.playback import read_history
 from anical.ui.air_dates import AirDatesDialog
 from anical.ui.cover import cover
@@ -78,6 +80,8 @@ def _text_group(title: str, text: str) -> Adw.PreferencesGroup:
 
 
 class ShowPage(Adw.NavigationPage):
+    """A show's page: its details, episodes with watch state and Play buttons, and its menu."""
+
     def __init__(self, window: MainWindow, anime_id: int):
         super().__init__(title="", tag=f"anime-{anime_id}")
         self._window = window
@@ -159,8 +163,11 @@ class ShowPage(Adw.NavigationPage):
         airings = self._schedule.episode_airings(self._anime_id)
         if next_episode := self._next_to_play(episode_list, airings):
             play = Gtk.Button(
-                label=f"Play {next_episode.label}", halign=Gtk.Align.START, margin_top=6,
-                css_classes=["pill", "suggested-action"], tooltip_text="Play the next unwatched episode",
+                label=f"Play {next_episode.label}",
+                halign=Gtk.Align.START,
+                margin_top=6,
+                css_classes=["pill", "suggested-action"],
+                tooltip_text="Play the next unwatched episode",
             )
             play.connect("clicked", lambda *_: self._window.play_episode(next_episode.id))
             titles.append(play)
@@ -172,7 +179,9 @@ class ShowPage(Adw.NavigationPage):
         details = Adw.PreferencesGroup(title="Details")
         details.add(_property_row("Status", anime.airing_status.label))
         details.add(_property_row("Type", anime.media_type.label))
-        details.add(_property_row("Episodes", str(anime.total_episodes) if anime.total_episodes is not None else "Unknown"))
+        details.add(
+            _property_row("Episodes", str(anime.total_episodes) if anime.total_episodes is not None else "Unknown")
+        )
         if dates := _date_range(anime):
             details.add(_property_row("Aired", dates))
         if anime.mal_id:
@@ -187,8 +196,12 @@ class ShowPage(Adw.NavigationPage):
                 use_markup=False,
             )
             edited.add_css_class("property")
-            revert = Gtk.Button(label="Revert", valign=Gtk.Align.CENTER, action_name="show.revert",
-                                tooltip_text="Use MyAnimeList’s values again")
+            revert = Gtk.Button(
+                label="Revert",
+                valign=Gtk.Align.CENTER,
+                action_name="show.revert",
+                tooltip_text="Use MyAnimeList’s values again",
+            )
             edited.add_suffix(revert)
             details.add(edited)
         self._content.append(details)
@@ -236,7 +249,8 @@ class ShowPage(Adw.NavigationPage):
             subtitle="ani-cli records what was started, not what was finished",
         )
         earlier = [
-            e.id for e in episode_list.episodes
+            e.id
+            for e in episode_list.episodes
             if e.kind is EpisodeKind.REGULAR and e.number < launched and e.state is WatchState.UNWATCHED
         ]
         if earlier:
@@ -255,10 +269,10 @@ class ShowPage(Adw.NavigationPage):
         group = Adw.PreferencesGroup(title="Episodes", header_suffix=self._count_label)
         self._update_count(episode_list)
         if not episode_list.episodes:
-            row = Adw.ActionRow(title="No episodes yet", subtitle="Set the episode count, or add episodes one at a time")
-            row.add_suffix(
-                Gtk.Button(label="Add Episode", valign=Gtk.Align.CENTER, action_name="show.add-episode")
+            row = Adw.ActionRow(
+                title="No episodes yet", subtitle="Set the episode count, or add episodes one at a time"
             )
+            row.add_suffix(Gtk.Button(label="Add Episode", valign=Gtk.Align.CENTER, action_name="show.add-episode"))
             group.add(row)
         now = int(time.time())
         episodes = episode_list.episodes
@@ -301,7 +315,9 @@ class ShowPage(Adw.NavigationPage):
     def _episode_row(self, episode: Episode, airing: EpisodeAiring | None, now: int) -> Adw.ActionRow:
         subtitle = " · ".join(p for p in (episode.title, airing and self._airing_text(airing)) if p)
         row = Adw.ActionRow(title=episode.label, subtitle=subtitle, use_markup=False)
-        check = Gtk.CheckButton(active=episode.state is WatchState.WATCHED, valign=Gtk.Align.CENTER, tooltip_text="Watched")
+        check = Gtk.CheckButton(
+            active=episode.state is WatchState.WATCHED, valign=Gtk.Align.CENTER, tooltip_text="Watched"
+        )
         check.update_property([Gtk.AccessibleProperty.LABEL], [f"{episode.label} watched"])
         check.connect("toggled", self._on_episode_toggled, episode.id)
         row.add_prefix(check)
@@ -309,8 +325,11 @@ class ShowPage(Adw.NavigationPage):
         if episode.kind is EpisodeKind.REGULAR:
             aired = airing is None or airing.airs_at <= now
             play = Gtk.Button(
-                icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                tooltip_text="Play" if aired else "Not aired yet", sensitive=aired,
+                icon_name="media-playback-start-symbolic",
+                valign=Gtk.Align.CENTER,
+                css_classes=["flat"],
+                tooltip_text="Play" if aired else "Not aired yet",
+                sensitive=aired,
             )
             play.update_property([Gtk.AccessibleProperty.LABEL], [f"Play {episode.label}"])
             play.connect("clicked", lambda *_: self._window.play_episode(episode.id))

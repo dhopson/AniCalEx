@@ -1,3 +1,5 @@
+"""The main window, and the window shown when the library can't be opened."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -6,9 +8,9 @@ from gi.repository import Adw, Gio, GObject, Gtk
 
 from anical.db.playback import PlaybackRepository
 from anical.db.repository import LibraryRepository
+from anical.db.schedule import ScheduleRepository
 from anical.domain.models import WatchState
 from anical.domain.playback import Outcome
-from anical.db.schedule import ScheduleRepository
 from anical.ui.calendar_view import CalendarView
 from anical.ui.display import DisplaySettings
 from anical.ui.editor import AnimeEditorDialog
@@ -38,6 +40,8 @@ def sync_message(result: RefreshResult) -> str | None:
 
 
 class MainWindow(Adw.ApplicationWindow):
+    """The main window: calendar and library views, show pages, and refresh status."""
+
     def __init__(
         self,
         *,
@@ -64,11 +68,19 @@ class MainWindow(Adw.ApplicationWindow):
         self._stack.connect("notify::visible-child-name", lambda *_: self._on_view_changed())
 
         header = Adw.HeaderBar(title_widget=Adw.ViewSwitcher(stack=self._stack, policy=Adw.ViewSwitcherPolicy.WIDE))
-        header.pack_start(Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Add Anime", action_name="win.add-anime"))
-        header.pack_end(Gtk.MenuButton(icon_name="open-menu-symbolic", menu_model=_main_menu(), tooltip_text="Main Menu", primary=True))
+        header.pack_start(
+            Gtk.Button(icon_name="list-add-symbolic", tooltip_text="Add Anime", action_name="win.add-anime")
+        )
+        header.pack_end(
+            Gtk.MenuButton(
+                icon_name="open-menu-symbolic", menu_model=_main_menu(), tooltip_text="Main Menu", primary=True
+            )
+        )
         self._search_button = Gtk.ToggleButton(icon_name="system-search-symbolic", tooltip_text="Search Library")
         self._search_button.bind_property(
-            "active", self.library_view.search_bar, "search-mode-enabled",
+            "active",
+            self.library_view.search_bar,
+            "search-mode-enabled",
             GObject.BindingFlags.BIDIRECTIONAL | GObject.BindingFlags.SYNC_CREATE,
         )
         header.pack_end(self._search_button)

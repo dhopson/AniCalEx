@@ -20,7 +20,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff>=0.17"]
 
 [project.scripts]
 anical = "anical.app:main"
@@ -38,3 +38,28 @@ testpaths = ["tests"]
 addopts = "-ra"
 # Raised inside PyGObject itself on Python 3.14, not by our code.
 filterwarnings = ["ignore::DeprecationWarning:gi.events"]
+
+# Lint and format: ruff check . && ruff format --check .
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["packaging/pkg", "packaging/src"]  # makepkg's work folders
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "SIM", "C4", "PIE", "RUF", "BLE", "S"]
+ignore = [
+    "RUF001", "RUF002", "RUF003",  # typographic quotes and dashes in UI text are deliberate (GNOME HIG)
+    "RUF012",  # GObject declares __gsignals__ and friends as mutable class attributes
+    "S603", "S607",  # subprocesses always run without a shell, from argument lists
+    "S310",  # anical.net.http checks URL schemes itself
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Imports that must follow setup code: gi.require_version, a display check, sys.path.
+"anical/app.py" = ["E402"]
+"anical/auth/secrets.py" = ["E402"]
+"packaging/ci/anicli_harness.py" = ["E402"]
+"tests/test_notifications.py" = ["E402"]
+"tests/test_platform.py" = ["E402"]
+"tests/test_ui_smoke.py" = ["E402"]
+"tests/**" = ["S101", "S105", "S106", "S108"]  # asserts, fake tokens and /tmp paths in tests

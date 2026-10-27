@@ -50,7 +50,7 @@ def test_numeric_bounds():
 
 
 def test_progress_classification():
-    base = dict(id=1, title="x", episode_count=12)
+    base = {"id": 1, "title": "x", "episode_count": 12}
     assert AnimeSummary(**base, watched_count=0).progress is WatchProgress.NOT_STARTED
     assert AnimeSummary(**base, watched_count=3).progress is WatchProgress.IN_PROGRESS
     assert AnimeSummary(**base, total_episodes=12, watched_count=12).progress is WatchProgress.FINISHED

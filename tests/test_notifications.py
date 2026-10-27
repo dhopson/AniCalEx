@@ -30,8 +30,8 @@ def test_announces_only_recently_available_real_unwatched_episodes():
 
 gi = pytest.importorskip("gi")
 gi.require_version("Gtk", "4.0")
-from anical.ui.display import DisplaySettings  # noqa: E402
-from anical.ui.notifier import Notifier  # noqa: E402
+from anical.ui.display import DisplaySettings
+from anical.ui.notifier import Notifier
 
 
 @pytest.fixture
@@ -81,9 +81,9 @@ def test_single_notification_plays_that_episode(setup):
     notifier._send = lambda key, notice: sent.append(notice)
     anime_id = airing_show(repo, schedule, "A", 3)
     notifier.check()
-    notice, = sent
+    (notice,) = sent
     assert (notice.action, notice.target) == ("app.show-anime", anime_id)
-    button, = notice.buttons
+    (button,) = notice.buttons
     assert (button.label, button.action) == ("Play", "app.play-episode")
     from anical.platform.notify import to_gio
 

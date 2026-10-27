@@ -2,6 +2,7 @@ import datetime
 from zoneinfo import ZoneInfo
 
 import pytest
+from helpers import FakeHttp, fixture_json, json_response
 
 from anical.domain.calendar import (
     CalendarEntry,
@@ -26,7 +27,6 @@ from anical.domain.schedule import (
 )
 from anical.net.http import Response
 from anical.providers.anilist import API_URL, AniListClient, AniListError
-from helpers import FakeHttp, fixture_json, json_response
 
 NOW = 1_793_040_000  # 2026-10-26
 JST = ZoneInfo("Asia/Tokyo")
@@ -127,8 +127,9 @@ def test_projection_refuses_to_guess(args):
 
 
 def entry(airs_at, state=WatchState.UNWATCHED, **kw):
-    return CalendarEntry(1, 1, kw.pop("title", "Show"), kw.pop("number", 1), airs_at, Precision.EXACT,
-                         AiringSource.ANILIST, state, **kw)
+    return CalendarEntry(
+        1, 1, kw.pop("title", "Show"), kw.pop("number", 1), airs_at, Precision.EXACT, AiringSource.ANILIST, state, **kw
+    )
 
 
 def test_entry_status_distinguishes_airing_from_availability():

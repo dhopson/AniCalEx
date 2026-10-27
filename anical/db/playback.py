@@ -10,6 +10,8 @@ from anical.domain.playback import MODES, PlaybackMapping
 
 
 class PlaybackRepository:
+    """Each show's playback choices in the database: ani-cli search text, chosen match, episode offset, sub or dub."""
+
     def __init__(self, conn: sqlite3.Connection, clock: Clock = system_clock):
         self._conn = conn
         self._clock = clock
@@ -36,8 +38,12 @@ class PlaybackRepository:
                        episode_offset = excluded.episode_offset, mode = excluded.mode,
                        verified_at = excluded.verified_at""",
                 (
-                    mapping.anime_id, mapping.query.strip(), mapping.result_title, mapping.episode_offset,
-                    mapping.mode, self._clock(),
+                    mapping.anime_id,
+                    mapping.query.strip(),
+                    mapping.result_title,
+                    mapping.episode_offset,
+                    mapping.mode,
+                    self._clock(),
                 ),
             )
 

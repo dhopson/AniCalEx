@@ -106,6 +106,8 @@ def _entry(row: sqlite3.Row) -> CalendarEntry:
 
 
 class ScheduleRepository:
+    """Air dates in the database: AniList times, estimates and the user's own dates, and the calendar's queries."""
+
     def __init__(self, conn: sqlite3.Connection, clock: Clock = system_clock):
         self._conn = conn
         self._clock = clock
@@ -127,8 +129,7 @@ class ScheduleRepository:
             (cutoff,),
         )
         return [
-            ScheduleTarget(r["id"], int(r["mal_id"]), int(r["anilist_id"]) if r["anilist_id"] else None)
-            for r in rows
+            ScheduleTarget(r["id"], int(r["mal_id"]), int(r["anilist_id"]) if r["anilist_id"] else None) for r in rows
         ]
 
     def apply_anilist(
@@ -200,8 +201,12 @@ class ScheduleRepository:
             projected = 0
             for row in candidates:
                 series = project_broadcast(
-                    row["start_date"], row["broadcast_day"], row["broadcast_time"], row["broadcast_tz"],
-                    row["total_episodes"], now,
+                    row["start_date"],
+                    row["broadcast_day"],
+                    row["broadcast_time"],
+                    row["broadcast_tz"],
+                    row["total_episodes"],
+                    now,
                 )
                 if not series:
                     continue
@@ -214,7 +219,11 @@ class ScheduleRepository:
                 )
                 for number, airs_at in series:
                     self._upsert_airing(
-                        self._episode_id(row["id"], number), AiringSource.MAL_BROADCAST, airs_at, Precision.ESTIMATED, now
+                        self._episode_id(row["id"], number),
+                        AiringSource.MAL_BROADCAST,
+                        airs_at,
+                        Precision.ESTIMATED,
+                        now,
                     )
         return projected
 
@@ -232,7 +241,9 @@ class ScheduleRepository:
             ).fetchone()[0]
             sync_episodes(self._conn, anime_id, total, at_least=max(n for n, _ in airings))
             for number, airs_at in airings:
-                self._upsert_airing(self._episode_id(anime_id, number), AiringSource.USER, airs_at, Precision.EXACT, now)
+                self._upsert_airing(
+                    self._episode_id(anime_id, number), AiringSource.USER, airs_at, Precision.EXACT, now
+                )
 
     def clear_user_airings(self, anime_id: int) -> int:
         with transaction(self._conn):
@@ -278,7 +289,7 @@ class ScheduleRepository:
                 WHERE x.airs_at >= ? AND x.airs_at < ? AND a.in_library = 1
                   AND NOT EXISTS (SELECT 1 FROM notification_sent n
                                   WHERE n.episode_id = e.id AND n.kind = 'available')
-                ORDER BY x.airs_at""",
+                ORDER BY x.airs_at""",  # noqa: S608 - constant column lists and ? placeholders only
             (start, end),
         )
         return [_entry(r) for r in rows]

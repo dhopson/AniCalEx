@@ -1,3 +1,5 @@
+"""The Library view: the list of shows, with search, filters and sorting."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -26,6 +28,8 @@ def progress_text(summary: AnimeSummary) -> str:
 
 
 class AnimeRow(Adw.ActionRow):
+    """One show in the library list."""
+
     def __init__(self, summary: AnimeSummary):
         subtitle = f"{summary.airing_status.label} · {summary.media_type.label}"
         if summary.mal_list_status:
@@ -56,13 +60,22 @@ class LibraryView(Adw.Bin):
         self._list_filter = self._dropdown(["Any List", *MAL_LIST_STATUS_LABELS.values()], "MyAnimeList list status")
         self._sort = self._dropdown([f"Sort: {k.label}" for k in _SORT_KEYS], "Sort order")
         self._filter_bar = Gtk.FlowBox(
-            selection_mode=Gtk.SelectionMode.NONE, halign=Gtk.Align.CENTER, max_children_per_line=4,
-            column_spacing=6, row_spacing=6, margin_top=6, margin_bottom=6, margin_start=12, margin_end=12,
+            selection_mode=Gtk.SelectionMode.NONE,
+            halign=Gtk.Align.CENTER,
+            max_children_per_line=4,
+            column_spacing=6,
+            row_spacing=6,
+            margin_top=6,
+            margin_bottom=6,
+            margin_start=12,
+            margin_end=12,
         )
         for dropdown in (self._status_filter, self._watch_filter, self._list_filter, self._sort):
             self._filter_bar.append(dropdown)
 
-        self._list = Gtk.ListBox(selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"], valign=Gtk.Align.START)
+        self._list = Gtk.ListBox(
+            selection_mode=Gtk.SelectionMode.NONE, css_classes=["boxed-list"], valign=Gtk.Align.START
+        )
         self._list.connect("row-activated", lambda _list, row: window.show_anime(row.anime_id))
         # Rows are built once per reload; queries only re-filter and re-sort them.
         self._current_query = LibraryQuery()

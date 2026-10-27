@@ -4,11 +4,11 @@ AniCal is a desktop app for tracking anime on Linux, macOS and Windows. It keeps
 
 **Status: 0.2.0.** Runs on Linux (GNOME), macOS (Apple Silicon and Intel) and Windows x64.
 
-![AniCal on first launch: the setup wizard, with Koyomi waving next to the welcome step](screenshots/setup-wizard.png)
+![AniCal on first launch: the setup wizard, with the mascot waving next to the welcome step](screenshots/setup-wizard.png)
 
 ## Features
 
-- **Setup wizard.** On first launch, Koyomi, AniCal's mascot, walks you through four short steps. You get a MyAnimeList client ID, log in or import a public list, and check for ani-cli and mpv. Each program has an Install button that opens a terminal window for your system. Every step can be skipped, and Back works until you finish. Main menu → Set Up AniCal… opens it again, with what you've already set up filled in.
+- **Setup wizard.** On first launch, AniCal's mascot walks you through four short steps. You get a MyAnimeList client ID, log in or import a public list, and check for ani-cli and mpv. Each program has an Install button that opens a terminal window for your system. Every step can be skipped, and Back works until you finish. Main menu → Set Up AniCal… opens it again, with what you've already set up filled in.
 - **Local library.** You can add, edit and delete shows by hand. Episodes can be marked watched one at a time or all at once, with undo. The library can be searched, filtered and sorted. All of this works offline, with no account.
 - **MyAnimeList import.** You can log in through your browser (OAuth with PKCE), or import a public list by username (see [Connecting MyAnimeList](#connecting-myanimelist)). Imports run when the app starts if the last successful sync was more than 24 hours ago, then once a day while the app runs, and on demand with <kbd>Ctrl</kbd>+<kbd>R</kbd>.
   - Imports bring in cover art and MAL list statuses.
@@ -166,28 +166,28 @@ python3 -m venv --system-site-packages .venv   # system site packages expose the
 .venv/bin/pip install -e '.[dev]' --config-settings editable_mode=compat   # wins over an installed AniCal
 .venv/bin/anical                               # or: .venv/bin/python -m anical
 .venv/bin/python -m pytest
+.venv/bin/ruff check . && .venv/bin/ruff format --check .   # lint and formatting (settings in pyproject.toml)
 ```
 
 If you set `ANICAL_DATA_DIR=/some/dir`, the app uses a separate library there, which is useful when testing.
 
 UI smoke tests (`tests/test_ui_smoke.py`) build the real widgets and are skipped when no display is available. The other tests are headless.
 
-## Building the macOS and Windows apps
+## Building
 
-GitHub Actions builds everything (`.github/workflows/build.yml`) on every push to `main`.
+PyInstaller can't build for another system, so each build runs on the system it's for. All of them freeze the same recipe, `packaging/pyinstaller/anical.spec`. Each script installs what it can, says what's missing, and ends by starting the built app in self-test mode (a window opens for a few seconds). Results go to `dist/` and `out/`.
 
-- **Linux:** the tests run in an Arch container, and the Arch package is built.
-- **macOS:** the tests run, then an ad-hoc signed `.dmg` is built for each architecture.
-- **Windows:** the tests run, then the installer and portable zip are built.
-- **Every build** is installed or copied elsewhere and started in self-test mode, with the build tools hidden.
-- **On Windows,** the installed app also drives the real ani-cli against a fake site (`packaging/ci/anicli_harness.py`).
-- **Pushing a `v*` tag** collects all the downloads into a draft GitHub Release, which you then publish by hand.
-
-To build locally, use the same recipe, `packaging/pyinstaller/anical.spec`:
-- macOS: with Homebrew's `gtk4 libadwaita pygobject3`.
-- Windows: in an MSYS2 UCRT64 shell. The Windows toast helper is built separately with python.org Python (`packaging/windows/anical-notify.spec`).
+- **Linux (Arch package):** `cd packaging && makepkg -si`.
+- **macOS:** `packaging/macos/build.sh` needs [Homebrew](https://brew.sh), and installs the GTK stack from it if missing. It builds `AniCal.app`, signs it ad hoc, and makes `out/AniCal-VERSION-macos-ARCH.dmg`.
+  - It builds for the Mac it runs on. An Apple Silicon Mac can also build the Intel version with `--arch x86_64`, using a second, Intel Homebrew in `/usr/local` under Rosetta (untested). An Intel Mac can only build the Intel version.
+  - `--screenshots` also saves a screenshot and report of each setup wizard step and of Preferences.
+- **Windows:** `powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1` makes `out\AniCal-VERSION-windows-x64-setup.exe` and a portable zip.
+  - Install these once: MSYS2 (`winget install MSYS2.MSYS2`), Python from python.org for the toast helper (`winget install Python.Python.3.13`), and Inno Setup 6 (`winget install JRSoftware.InnoSetup`). The script installs the GTK stack into MSYS2 itself.
+  - The self-test runs the built folder, not an installed copy, so an AniCal you already installed is left alone. `-Screenshots` also saves each setup wizard step.
 
 `ANICAL_SELFTEST=report.json` makes any build check itself, write a report and quit.
+
+GitHub Actions can run the same builds (`.github/workflows/build.yml`). It also tests each build with the build tools hidden, drives the real ani-cli on Windows against a fake site (`packaging/ci/anicli_harness.py`), and, for a `v*` tag, collects every download into a draft GitHub Release to publish by hand.
 
 ## Layout
 
@@ -205,13 +205,13 @@ anical/
   playback/         helpers given to ani-cli: picker (anical-pick), mpv shim (anical-mpv), progress script
   ui/               window, calendar and library views, show page, dialogs, preferences, refresh controller
   data/icons/       app icon (full colour and symbolic)
-  data/setup/       the setup wizard's mascot (Koyomi) and per-system install scripts
+  data/setup/       the setup wizard's mascot and per-system install scripts
 packaging/
   PKGBUILD, *.desktop, *.metainfo.xml   Arch package and Linux desktop integration
   art/mascot.json   how the mascot art was made (ComfyUI models, prompts, seeds)
   pyinstaller/      the macOS and Windows build recipe
-  macos/            .icns icon script
-  windows/          Inno Setup installer, toast helper recipe, .ico script
+  macos/            build script (build.sh) and .icns icon script
+  windows/          build script (build.ps1), Inno Setup installer, toast helper recipe, .ico script
   ci/               self-test runner and ani-cli harness used by CI
 screenshots/        images used in this README
 tests/              pytest

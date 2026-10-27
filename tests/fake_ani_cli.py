@@ -38,9 +38,15 @@ def main():
     query = " ".join(query)
     if log := os.environ.get("FAKE_LOG"):
         with open(log, "w", encoding="utf-8") as file:
-            json.dump({"argv": sys.argv[1:], "menu": os.environ.get("ANI_CLI_MENU"),
-                       "player": os.environ.get("ANI_CLI_PLAYER"),
-                       "stdin_is_terminal": os.isatty(0)}, file)
+            json.dump(
+                {
+                    "argv": sys.argv[1:],
+                    "menu": os.environ.get("ANI_CLI_MENU"),
+                    "player": os.environ.get("ANI_CLI_PLAYER"),
+                    "stdin_is_terminal": os.isatty(0),
+                },
+                file,
+            )
     if not query:
         die("No query")
 
@@ -65,7 +71,11 @@ def main():
         sys.exit(0)  # ani-cli detaches other players and can't report anything
     # ani-cli's *mpv* case with --no-detach --exit-after-play: run it in the foreground, exit with its status.
     title = f"--force-media-title={query} Episode {episode}"
-    sys.exit(subprocess.run([player, "--referrer=https://embed.example/", title, "https://stream.example/ep.m3u8"]).returncode)
+    sys.exit(
+        subprocess.run(
+            [player, "--referrer=https://embed.example/", title, "https://stream.example/ep.m3u8"]
+        ).returncode
+    )
 
 
 if __name__ == "__main__":

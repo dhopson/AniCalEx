@@ -41,6 +41,8 @@ def describe_error(error: Exception) -> str:
 
 @dataclass
 class RefreshResult:
+    """What one refresh did: the MyAnimeList import, the schedule update, and any errors."""
+
     mal: ImportSummary | None = None
     schedule: ScheduleSummary | None = None
     errors: list[str] = field(default_factory=list)
@@ -269,4 +271,3 @@ class SyncController(GObject.Object):
             on_finished(None)
 
         run_in_thread(self._service.logout, done, lambda e: on_finished(describe_error(e)))
-

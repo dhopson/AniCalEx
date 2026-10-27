@@ -8,7 +8,7 @@ import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
-from anical.net.http import HttpClient, NetworkError
+from anical.net.http import HttpClient, NetworkError, allowed_url
 
 MAX_COVER_BYTES = 5 * 1024 * 1024
 _EXTENSIONS = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
@@ -34,6 +34,8 @@ def download_covers(
     directory.mkdir(parents=True, exist_ok=True)
     saved: list[tuple[int, str]] = []
     for anime_id, url in items:
+        if not allowed_url(url):
+            continue  # not a web address: never fetched
         try:
             response = http.request("GET", url)
         except NetworkError:

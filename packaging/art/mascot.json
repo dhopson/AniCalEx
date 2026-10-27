@@ -1,5 +1,5 @@
 {
-  "about": "Koyomi (暦, 'calendar'), AniCal's mascot: a felt mascot costume with a calendar-page head. Made with a local ComfyUI. The base image was generated with Z-Image Turbo, and each pose is an instruction edit of the base with Qwen-Image-Edit-2511 (Lightning 4-step LoRA, 4 steps, CFG 1, shift 3.1) followed by BiRefNet background removal. All five poses were then cropped to one shared box (x 68-751, y 29-1210 of 832x1216) and scaled to 640 px tall, so Koyomi keeps the same scale and position on every step.",
+  "about": "AniCal's mascot: a felt mascot costume with a calendar-page head. Made with a local ComfyUI. The base image was generated with Z-Image Turbo, and each pose is an instruction edit of the base with Qwen-Image-Edit-2511 (Lightning 4-step LoRA, 4 steps, CFG 1, shift 3.1) followed by BiRefNet background removal. All five poses were then cropped to one shared box (x 68-751, y 29-1210 of 832x1216) and scaled to 640 px tall, so the mascot keeps the same scale and position on every step.",
   "licenses": {
     "Z-Image Turbo": "Apache-2.0",
     "Qwen-Image-Edit-2511": "Apache-2.0",

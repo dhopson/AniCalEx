@@ -14,10 +14,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 from anical import APP_ID
-from anical.auth.mal_oauth import Token, TokenStore, TokenStoreError
+from anical.auth.mal_oauth import TOKEN_LABEL, Token, TokenStore, TokenStoreError
 from anical.platform import System, current
 
-_DESCRIPTION = "AniCal MyAnimeList login"
 _ACCOUNT = "myanimelist"
 _CRYPTPROTECT_UI_FORBIDDEN = 0x1
 
@@ -46,9 +45,11 @@ def _dpapi(name: str) -> Callable[[bytes], bytes]:
         buffer = ctypes.create_string_buffer(data, len(data))
         source = Blob(len(data), ctypes.cast(buffer, ctypes.POINTER(ctypes.c_char)))
         result = Blob()
-        description = _DESCRIPTION if name == "CryptProtectData" else None
+        description = TOKEN_LABEL if name == "CryptProtectData" else None
         function = getattr(ctypes.windll.crypt32, name)
-        if not function(ctypes.byref(source), description, None, None, None, _CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(result)):
+        if not function(
+            ctypes.byref(source), description, None, None, None, _CRYPTPROTECT_UI_FORBIDDEN, ctypes.byref(result)
+        ):
             raise ctypes.WinError()
         try:
             return ctypes.string_at(result.pbData, result.cbData)
@@ -79,9 +80,10 @@ class DpapiTokenStore:
         except OSError as e:
             raise TokenStoreError(f"Couldn’t read the saved login: {e}") from e
         try:
-            return Token.from_json(self._unprotect(sealed).decode("utf-8"))
-        except (OSError, ValueError, KeyError, TypeError):
-            return None  # unreadable (another user's, or damaged): treat as logged out
+            text = self._unprotect(sealed).decode("utf-8")
+        except (OSError, ValueError):
+            return None  # another user's, or damaged: treat as logged out
+        return Token.from_saved(text)
 
     def save(self, token: Token) -> None:
         try:
@@ -117,25 +119,20 @@ class KeychainTokenStore:
     def load(self) -> Token | None:
         try:
             secret = self._keyring().get_password(APP_ID, _ACCOUNT)
-        except Exception as e:  # noqa: BLE001 - keyring raises its own KeyringError family
+        except Exception as e:  # keyring raises its own KeyringError family
             raise TokenStoreError(f"Couldn’t read the Keychain: {e}") from e
-        if not secret:
-            return None
-        try:
-            return Token.from_json(secret)
-        except (ValueError, KeyError, TypeError):
-            return None
+        return Token.from_saved(secret)
 
     def save(self, token: Token) -> None:
         try:
             self._keyring().set_password(APP_ID, _ACCOUNT, token.to_json())
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             raise TokenStoreError(f"Couldn’t save the login to the Keychain: {e}") from e
 
     def clear(self) -> None:
         keyring = self._keyring()
         try:
             keyring.delete_password(APP_ID, _ACCOUNT)
-        except Exception as e:  # noqa: BLE001
+        except Exception as e:
             if type(e).__name__ != "PasswordDeleteError":  # nothing was saved
                 raise TokenStoreError(f"Couldn’t remove the login from the Keychain: {e}") from e
