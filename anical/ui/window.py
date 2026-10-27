@@ -248,6 +248,7 @@ def _main_menu() -> Gio.Menu:
     actions.append("Refresh", "win.sync")
     menu.append_section(None, actions)
     app_items = Gio.Menu()
+    app_items.append("Set Up AniCal…", "app.setup")
     app_items.append("Preferences", "app.preferences")
     app_items.append("Keyboard Shortcuts", "app.shortcuts")
     app_items.append("About AniCal", "app.about")

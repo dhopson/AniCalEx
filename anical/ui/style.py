@@ -72,6 +72,25 @@ button.cal-cell.first-row { border-top: 1px solid color-mix(in srgb, currentColo
 button.cal-cell.compact { min-height: 44px; }
 .cal-today { color: var(--accent-color); font-weight: bold; }
 .cal-outside { opacity: 0.45; }
+
+/* Setup wizard: Koyomi's speech bubble, with a tail pointing down at her. */
+.wizard-bubble {
+  background-color: var(--card-bg-color);
+  color: var(--card-fg-color);
+  border-radius: 18px;
+  padding: 14px 16px;
+  box-shadow: 0 1px 3px color-mix(in srgb, black 18%, transparent);
+}
+.wizard-bubble-tail {
+  min-width: 18px;
+  min-height: 12px;
+  background-color: var(--card-bg-color);
+  margin-left: 64px;
+  margin-top: -1px;
+}
+.wizard-step-dot { min-width: 8px; min-height: 8px; border-radius: 4px; background-color: color-mix(in srgb, currentColor 20%, transparent); }
+.wizard-step-dot.current { background-color: var(--accent-bg-color); min-width: 20px; }
+.wizard-step-dot.done { background-color: color-mix(in srgb, var(--accent-bg-color) 50%, transparent); }
 """
 
 

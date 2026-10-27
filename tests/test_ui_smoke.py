@@ -524,3 +524,93 @@ def test_keyboard_actions_and_shortcuts_dialog(window):
     window.activate_action("win.calendar-today", None)
     assert window.calendar_view._title.get_label() == first
     shortcuts_dialog()  # builds without errors
+
+
+# First-run setup wizard
+
+
+@pytest.fixture
+def wizard_parts(controller, playback, settings, tmp_path, window):
+    from anical.ui.setup_wizard import SetupWizard
+
+    finished = []
+    made = []
+
+    def make():
+        wizard = SetupWizard(controller, playback, settings, tmp_path / "run", on_finished=lambda: finished.append(True))
+        wizard.present(window)  # as the app does
+        made.append(wizard)
+        return wizard
+
+    yield make, finished
+    for wizard in made:
+        wizard.force_close()
+    drain()
+
+
+def test_wizard_counts_steps_and_goes_back(wizard_parts, controller, settings):
+    from anical.db.settings import SETUP_SEEN
+
+    make, finished = wizard_parts
+    wizard = make()
+    assert wizard._title.get_subtitle() == "Step 1 of 4"
+    assert not wizard._back.get_visible() and wizard._next.get_label() == "Let’s Go"
+    wizard._on_next()
+    assert wizard._title.get_subtitle() == "Step 2 of 4" and wizard._back.get_visible()
+    assert wizard._next.get_label() == "Skip"  # nothing entered yet
+    wizard._client_entry.set_text("0123456789abcdef0123456789abcdef")
+    assert wizard._next.get_label() == "Next" and "looks like a client ID" in wizard._client_hint.get_label()
+    wizard._on_next()  # leaving the step saves the client ID
+    assert controller.config.client_id == "0123456789abcdef0123456789abcdef"
+    assert wizard._title.get_subtitle() == "Step 3 of 4"
+    wizard._back.emit("clicked")
+    assert wizard._title.get_subtitle() == "Step 2 of 4"  # back works until Finish
+    wizard.go_to(4)
+    assert wizard._next.get_label() == "Finish"
+    wizard._on_next()
+    assert finished == [True] and settings.get(SETUP_SEEN) is True
+    wizard._go(0)
+    assert wizard._title.get_subtitle() == "Step 4 of 4"  # finished: no more navigation
+
+
+def test_wizard_rerun_shows_what_is_already_set_up(wizard_parts, controller, settings):
+    settings.set(MAL_CLIENT_ID, "fedcba9876543210fedcba9876543210")
+    settings.set(MAL_MODE, "username")
+    settings.set(MAL_USERNAME, "someone")
+    make, _ = wizard_parts
+    wizard = make()
+    assert wizard._client_entry.get_text() == "fedcba9876543210fedcba9876543210"  # pre-filled
+    wizard.go_to(2)
+    assert wizard._next.get_label() == "Next"
+    wizard.go_to(3)
+    assert "Importing someone’s public list" in widget_texts(wizard._sign_in_box)
+    assert wizard._next.get_label() == "Next"
+    assert "Got it" in wizard._bubbles["sign-in"].get_label()
+
+
+def test_wizard_sign_in_step_without_client_id_points_back(wizard_parts):
+    make, _ = wizard_parts
+    wizard = make()
+    wizard.go_to(3)
+    texts = widget_texts(wizard._sign_in_box)
+    assert "Add a Client ID" in texts and wizard._next.get_label() == "Skip"
+
+
+def test_wizard_playback_step_checks_and_installs(wizard_parts, playback, settings, monkeypatch):
+    import anical.ui.setup_wizard as setup_wizard
+
+    opened = []
+    monkeypatch.setattr(setup_wizard, "open_install_terminal", lambda folder, programs: opened.append(programs))
+    make, _ = wizard_parts
+    wizard = make()
+    wizard.go_to(4)
+    assert all(p.found for p in wizard._programs)  # the fixtures' fake ani-cli and mpv
+    assert "All set" in wizard._bubbles["playback"].get_label()
+
+    settings.set(PLAYBACK_PLAYER, "/nonexistent/mpv")
+    wizard._recheck()
+    mpv = next(p for p in wizard._programs if p.name == "mpv")
+    assert not mpv.found and mpv.install.get_visible()
+    assert "Let’s make sure" in wizard._bubbles["playback"].get_label()
+    mpv.install.emit("clicked")
+    assert opened == [["mpv"]]

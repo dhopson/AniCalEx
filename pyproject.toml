@@ -31,7 +31,7 @@ include = ["anical*"]
 [tool.setuptools.package-data]
 "anical.db" = ["migrations/*.sql"]
 "anical.playback" = ["data/*"]
-"anical" = ["data/icons/hicolor/*/apps/*.svg"]
+"anical" = ["data/icons/hicolor/*/apps/*.svg", "data/setup/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

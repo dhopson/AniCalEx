@@ -225,3 +225,37 @@ def test_helper_sender_routes_clicks_to_app_actions(tmp_path):
     while len(app.activated) < 2 and time.monotonic() < deadline:
         GLib.MainContext.default().iteration(False)
     assert app.activated == [("play-episode", 7), ("show-anime", 5)]
+
+
+# Install scripts in a terminal (setup wizard)
+
+from anical.platform.terminal import TerminalError, install_script, terminal_command  # noqa: E402
+
+
+def test_install_scripts_are_copied_executable(tmp_path):
+    for system, name in ((System.LINUX, "install-linux.sh"), (System.MACOS, "install-macos.command"),
+                         (System.WINDOWS, "install-windows.ps1")):
+        script = install_script(tmp_path / "setup dir", system)
+        assert script.name == name and script.stat().st_size > 0
+        if sys.platform != "win32":
+            assert script.stat().st_mode & 0o111
+
+
+def test_terminal_commands_per_system(tmp_path):
+    script = install_script(tmp_path, System.LINUX)
+    found = {"gnome-terminal", "xterm"}
+    assert terminal_command(script, ["mpv"], System.LINUX, lambda n: n if n in found else None) == [
+        "gnome-terminal", "--", "bash", str(script), "mpv"
+    ]
+    with pytest.raises(TerminalError):
+        terminal_command(script, ["mpv"], System.LINUX, lambda n: None)
+
+    ps1 = install_script(tmp_path, System.WINDOWS)
+    command = terminal_command(ps1, ["git", "ani-cli"], System.WINDOWS)
+    assert command[0] == "powershell.exe" and command[-3:] == [str(ps1), "git", "ani-cli"]
+
+    mac = install_script(tmp_path / "Application Support", System.MACOS)
+    command = terminal_command(mac, ["ani-cli", "mpv"], System.MACOS)
+    assert command[:3] == ["open", "-a", "Terminal"]
+    launcher = Path(command[3])
+    assert launcher.name.endswith(".command") and str(mac) in launcher.read_text()  # quoted path with a space

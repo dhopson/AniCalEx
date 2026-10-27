@@ -6,6 +6,7 @@ AniCal is a desktop app for tracking anime on Linux, macOS and Windows. It keeps
 
 ## Features
 
+- **Setup wizard.** On first launch, Koyomi, AniCal's mascot, walks you through four short steps. You get a MyAnimeList client ID, log in or import a public list, and check for ani-cli and mpv. Each program has an Install button that opens a terminal window for your system. Every step can be skipped, and Back works until you finish. Main menu → Set Up AniCal… opens it again, with what you've already set up filled in.
 - **Local library.** You can add, edit and delete shows by hand. Episodes can be marked watched one at a time or all at once, with undo. The library can be searched, filtered and sorted. All of this works offline, with no account.
 - **MyAnimeList import.** You can log in through your browser (OAuth with PKCE), or import a public list by username (see [Connecting MyAnimeList](#connecting-myanimelist)). Imports run when the app starts if the last successful sync was more than 24 hours ago, then once a day while the app runs, and on demand with <kbd>Ctrl</kbd>+<kbd>R</kbd>.
   - Imports bring in cover art and MAL list statuses.
@@ -85,6 +86,8 @@ The app is signed ad hoc, so after an update macOS may ask once whether AniCal m
 Uninstalling (Settings → Apps) keeps your library in `%LOCALAPPDATA%\AniCal`.
 
 ## Connecting MyAnimeList
+
+The setup wizard (main menu → Set Up AniCal…) walks through these steps. By hand:
 
 1. Register a client ID at <https://myanimelist.net/apiconfig>:
    - App type: *other*
@@ -200,8 +203,10 @@ anical/
   playback/         helpers given to ani-cli: picker (anical-pick), mpv shim (anical-mpv), progress script
   ui/               window, calendar and library views, show page, dialogs, preferences, refresh controller
   data/icons/       app icon (full colour and symbolic)
+  data/setup/       the setup wizard's mascot (Koyomi) and per-system install scripts
 packaging/
   PKGBUILD, *.desktop, *.metainfo.xml   Arch package and Linux desktop integration
+  art/              draws the mascot (make-mascot.py)
   pyinstaller/      the macOS and Windows build recipe
   macos/            .icns icon script
   windows/          Inno Setup installer, toast helper recipe, .ico script

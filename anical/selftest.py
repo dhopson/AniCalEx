@@ -143,6 +143,14 @@ def run(window: Gtk.Window, paths, send) -> dict:
                 os.close(terminal)
         return process.returncode == 0, f"{' '.join(argv)}: exit {process.returncode} {stderr.decode(errors='replace')[-300:]}"
 
+    def setup_art():
+        from gi.repository import Gdk
+
+        from anical.ui.setup_wizard import POSES, mascot_path
+
+        sizes = {pose: Gdk.Texture.new_from_filename(str(mascot_path(pose))).get_width() for pose in POSES}
+        return all(width > 0 for width in sizes.values()), f"{sizes}"
+
     def programs():
         from anical.platform.anicli import find_ani_cli, find_bash, find_player
 
@@ -158,6 +166,7 @@ def run(window: Gtk.Window, paths, send) -> dict:
     check("time_zones", True, zones)
     check("playback_helpers", True, helpers)
     check("token_store", frozen and system is not System.LINUX, token_store)
+    check("setup_wizard_art", True, setup_art)
     check("notifications", False, notifications)
     check("playback_programs", False, programs)
     check("ani_cli_runs", bool(os.environ.get("ANICAL_SELFTEST_ANICLI")), ani_cli_runs)

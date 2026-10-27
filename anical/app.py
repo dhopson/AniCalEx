@@ -19,7 +19,7 @@ from anical.db.backup import automatic_backup  # noqa: E402
 from anical.db.database import DatabaseError, open_database  # noqa: E402
 from anical.db.playback import PlaybackRepository  # noqa: E402
 from anical.db.repository import LibraryRepository  # noqa: E402
-from anical.db.settings import SettingsRepository  # noqa: E402
+from anical.db.settings import SETUP_SEEN, SettingsRepository  # noqa: E402
 from anical.net.http import UrllibClient  # noqa: E402
 from anical.platform.notify import notification_sender  # noqa: E402
 from anical.platform.paths import app_paths  # noqa: E402
@@ -31,6 +31,7 @@ from anical.db.schedule import ScheduleRepository  # noqa: E402
 from anical.ui.notifier import Notifier  # noqa: E402
 from anical.ui.playback_controller import PlaybackController  # noqa: E402
 from anical.ui.preferences import PreferencesDialog  # noqa: E402
+from anical.ui.setup_wizard import SetupWizard  # noqa: E402
 from anical.ui.sync_controller import SyncController  # noqa: E402
 from anical.ui.window import DatabaseErrorWindow, MainWindow  # noqa: E402
 
@@ -78,7 +79,11 @@ def shortcuts_dialog() -> Adw.ShortcutsDialog:
 
 class AniCalApplication(Adw.Application):
     def __init__(self):
-        super().__init__(application_id=APP_ID, flags=Gio.ApplicationFlags.DEFAULT_FLAGS)
+        # A separate library ($ANICAL_DATA_DIR: development, tests, CI) runs as its own
+        # instance instead of handing over to an AniCal that is already running.
+        separate = bool(os.environ.get("ANICAL_DATA_DIR"))
+        flags = Gio.ApplicationFlags.NON_UNIQUE if separate else Gio.ApplicationFlags.DEFAULT_FLAGS
+        super().__init__(application_id=APP_ID, flags=flags)
         self._conn = None
         self._sync: SyncController | None = None
         self._display: DisplaySettings | None = None
@@ -93,6 +98,7 @@ class AniCalApplication(Adw.Application):
             ("quit", lambda *_: self.quit(), ["<Primary>q"]),
             ("about", self._on_about, []),
             ("preferences", self._on_preferences, ["<Primary>comma"]),
+            ("setup", lambda *_: self._show_setup(), []),
         ):
             action = Gio.SimpleAction.new(name, None)
             action.connect("activate", callback)
@@ -154,10 +160,16 @@ class AniCalApplication(Adw.Application):
         window.present()
         send = notification_sender(self)
         self._notifier = Notifier(ScheduleRepository(self._conn), settings, self._display, send)
+        self._settings = settings
+        self._runtime_dir = paths.runtime
         if report := os.environ.get("ANICAL_SELFTEST"):
             from anical import selftest
 
             selftest.schedule(self, window, paths, send, report)
+            if step := os.environ.get("ANICAL_SELFTEST_WIZARD"):  # CI screenshots of a wizard step
+                self._show_setup(window, int(step))
+        elif not settings.get(SETUP_SEEN) and not self._sync.config.client_id:
+            GLib.idle_add(lambda: self._show_setup() and False)  # first run: after the window is up
         self._sync.connect("library-changed", lambda *_: self._notifier.check())
         self._sync.start()  # local data is already on screen; refresh in the background if due
         self._notifier.start()
@@ -175,6 +187,17 @@ class AniCalApplication(Adw.Application):
         self.activate()
         if isinstance(window := self.get_active_window(), MainWindow):
             action(window)
+
+    def _show_setup(self, window: MainWindow | None = None, step: int = 1) -> None:
+        window = window or self.get_active_window()
+        if self._sync is None or not isinstance(window, MainWindow):
+            return
+        wizard = SetupWizard(
+            self._sync, self._playback, self._settings, self._runtime_dir,
+            on_finished=lambda: window.toast("AniCal is set up. Enjoy your shows!"),
+        )
+        wizard.present(window)
+        wizard.go_to(step)
 
     def _on_preferences(self, *_):
         if self._sync is not None:

@@ -11,7 +11,7 @@ name: build
 
 on:
   push:
-    branches: [main, "port/**"]
+    branches: [main, "port/**", "feature/**"]
     tags: ["v*"]
   workflow_dispatch:
 
@@ -113,6 +113,13 @@ jobs:
             for dir in Cellar opt etc; do sudo mv "/usr/local/$dir" "/usr/local/$dir-hidden"; done
           fi
           /usr/bin/python3 packaging/ci/run_selftest.py out/selftest -- "$RUNNER_TEMP/AniCal.app/Contents/MacOS/AniCal"
+
+      # A screenshot of each setup wizard step, for review.
+      - name: Setup wizard screenshots
+        run: |
+          for step in 1 2 3 4; do
+            ANICAL_SELFTEST_WIZARD=$step /usr/bin/python3 packaging/ci/run_selftest.py "out/wizard-$step" -- "$RUNNER_TEMP/AniCal.app/Contents/MacOS/AniCal"
+          done
 
       - uses: actions/upload-artifact@v7
         if: always()
@@ -227,6 +234,15 @@ jobs:
         env:
           ANICAL_SELFTEST_ANICLI: "1"
         run: python packaging/ci/run_selftest.py out/selftest -- "$env:LOCALAPPDATA\Programs\AniCal\AniCal.exe"
+
+      - name: Setup wizard screenshots
+        shell: pwsh
+        run: |
+          foreach ($step in 1..4) {
+            $env:ANICAL_SELFTEST_WIZARD = "$step"
+            python packaging/ci/run_selftest.py "out/wizard-$step" -- "$env:LOCALAPPDATA\Programs\AniCal\AniCal.exe"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
 
       - name: ani-cli through the installed helpers
         shell: pwsh

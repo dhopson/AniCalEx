@@ -26,6 +26,7 @@ PLAYBACK_EXTERNAL = "playback.external"  # link or command template with {title}
 PLAYBACK_PLAYER = "playback.player"  # the real mpv anical-mpv starts; unset = found automatically
 PLAYBACK_BASH = "playback.bash"  # Windows: Git Bash's bash.exe; unset = found automatically
 NOTIFICATIONS_ENABLED = "notifications.enabled"
+SETUP_SEEN = "setup.seen"  # the first-run wizard was finished or closed; it isn't shown again by itself
 
 # Sync-state keys
 LAST_REFRESH_RUN = "refresh.last_run"  # epoch seconds of the last successful refresh; no automatic refresh within 24h of it
