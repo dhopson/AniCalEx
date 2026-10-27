@@ -33,6 +33,7 @@ from anical.platform import System, current
 from anical.ui.playback_controller import BACKENDS, PlaybackController
 from anical.ui.sync_controller import SyncController
 
+MAL_API_CONFIG_URL = "https://myanimelist.net/apiconfig"
 _QUALITY_LABELS = {"best": "Best Available", "worst": "Lowest"}
 _INSTALL_HINTS = {
     System.LINUX: {
@@ -332,7 +333,10 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def _rebuild(self) -> None:
         for group in self._groups:
             self._page.remove(group)
-        self._groups = [self._account_group(), self._sync_group(), self._client_group()]
+        groups = [self._account_group(), self._sync_group(), self._client_group()]
+        if not self._controller.config.client_id:
+            groups = [groups[0], groups[2], groups[1]]  # the client ID comes first: nothing works without it
+        self._groups = groups
         for group in self._groups:
             self._page.add(group)
 
@@ -350,20 +354,43 @@ class PreferencesDialog(Adw.PreferencesDialog):
             group.add(row)
             return group
 
+        has_client = bool(config.client_id)
+        if not has_client:
+            # Both ways in need a client ID; say so instead of just greying them out.
+            needed = Adw.ActionRow(
+                title="Client ID Needed",
+                subtitle=(
+                    "Logging in and importing a public list both need a free client ID from MyAnimeList. "
+                    f"Register an app (type “other”, redirect URL {REDIRECT_URI}), "
+                    "then paste its client ID under API Client below."
+                ),
+                use_markup=False,
+            )
+            needed.add_prefix(Gtk.Image(icon_name="dialog-information-symbolic"))
+            register = Gtk.Button(label="Register…", valign=Gtk.Align.CENTER)
+            register.connect(
+                "clicked", lambda *_: Gtk.UriLauncher.new(MAL_API_CONFIG_URL).launch(self.get_root(), None, None)
+            )
+            needed.add_suffix(register)
+            group.add(needed)
+
         login_row = Adw.ActionRow(
-            title="Log In", subtitle="Opens MyAnimeList in your browser. Needed for private lists."
+            title="Log In",
+            subtitle="Opens MyAnimeList in your browser. Needed for private lists."
+            if has_client else "Available once a client ID is set",
         )
         login = Gtk.Button(label="Log In", valign=Gtk.Align.CENTER, css_classes=["suggested-action"])
-        login.set_sensitive(bool(config.client_id))
+        login.set_sensitive(has_client)
         login.connect("clicked", self._on_login)
         login_row.add_suffix(login)
         group.add(login_row)
 
         username = Adw.EntryRow(
-            title="Or Import a Public List by Username", show_apply_button=True,
+            title="Or Import a Public List by Username" if has_client else "Import a Public List (needs a client ID)",
+            show_apply_button=True,
             text=config.username if config.mode == USERNAME else "",
         )
-        username.set_sensitive(bool(config.client_id))
+        username.set_sensitive(has_client)
         username.connect("apply", lambda row: self._controller.use_public_list(row.get_text()))
         group.add(username)
         return group
@@ -390,7 +417,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
     def _client_group(self) -> Adw.PreferencesGroup:
         group = Adw.PreferencesGroup(
             title="API Client",
-            description=f"A client ID from myanimelist.net/apiconfig with redirect URL {REDIRECT_URI}",
+            description=f"A client ID from {MAL_API_CONFIG_URL.removeprefix('https://')} with redirect URL {REDIRECT_URI}",
         )
         entry = Adw.EntryRow(title="Client ID", show_apply_button=True, text=self._controller.config.client_id)
         entry.connect("apply", lambda row: self._controller.set_client_id(row.get_text()))

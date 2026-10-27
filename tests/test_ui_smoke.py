@@ -214,6 +214,19 @@ def test_preferences_build_in_every_mode(controller, settings, display, playback
     dialog.force_close()
 
 
+def test_mal_page_explains_a_missing_client_id(controller, settings, display, playback, repo):
+    dialog = PreferencesDialog(controller, display, playback, repo.connection, Path("/tmp"), lambda: None)
+    texts = widget_texts(dialog._page)
+    assert "Client ID Needed" in texts and "Available once a client ID is set" in texts
+    assert [g.get_title() for g in dialog._groups] == ["Account", "API Client", "Sync"]  # the fix comes first
+
+    controller.set_client_id("cid")  # emits changed, which rebuilds the page
+    texts = widget_texts(dialog._page)
+    assert "Client ID Needed" not in texts
+    assert [g.get_title() for g in dialog._groups] == ["Account", "Sync", "API Client"]
+    dialog.force_close()
+
+
 def schedule_show(repo, window, *offsets_hours):
     """An airing show with one user-set airing per offset (hours from now)."""
     import time
