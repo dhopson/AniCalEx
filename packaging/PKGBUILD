@@ -1,7 +1,7 @@
 # Builds AniCal from this source checkout:  cd packaging && makepkg -si
 pkgname=anical
-pkgver=0.1.0
-pkgrel=3
+pkgver=0.2.0
+pkgrel=1
 pkgdesc="Anime library and airing calendar, with ani-cli playback"
 arch=('any')
 license=('MIT')

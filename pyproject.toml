@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anical"
-version = "0.1.0"
-description = "Anime library and airing calendar for GNOME, with ani-cli playback"
+version = "0.2.0"
+description = "Anime library and airing calendar for Linux, macOS and Windows, with ani-cli playback"
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"

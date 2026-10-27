@@ -35,6 +35,11 @@
   <url type="homepage">https://github.com/dhopson/AniCal</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.0" date="2026-10-27">
+      <description>
+        <p>Runs on macOS and Windows as well as Linux. Playback can also open a link or run a command instead of ani-cli, and ani-cli now keeps AniCal's show picker even when rofi or dmenu is installed.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-10-26">
       <description>
         <p>First release: library, MyAnimeList import, airing calendar, ani-cli playback and notifications.</p>

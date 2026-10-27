@@ -1,4 +1,4 @@
-"""AniCal: anime library and airing calendar for GNOME."""
+"""AniCal: anime library and airing calendar for Linux, macOS and Windows."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 APP_ID = "io.github.dhopson.AniCal"
