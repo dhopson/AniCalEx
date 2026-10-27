@@ -26,10 +26,11 @@ AniCal is a GNOME desktop app for tracking anime. It keeps a local library of sh
   - **Finding the show:** if ani-cli's search finds several shows, AniCal asks which one is right and remembers the answer. Per show, you can change the search text, forget the chosen match, set an episode offset for differently numbered seasons, or choose sub or dub (show menu → Playback Settings…).
   - **Watched tracking:** a small mpv script reports how far playback got. If you play to the end or past 90%, the episode is marked watched, with Undo. If you stop earlier, AniCal asks.
     - Launching an episode never marks it watched.
-    - With players other than mpv, progress is unknown, so AniCal asks.
+    - ani-cli always plays in mpv when started from AniCal. You can set mpv's location in Preferences → Playback.
     - Automatic marking can be turned off in Preferences → Playback.
   - **ani-cli's history:** shown as a hint ("Last launched: Episode 5"), because it records what was started, not what was finished. It is never applied automatically. AniCal never writes to it.
-  - **Safety:** ani-cli runs without a shell, with the title as a single argument, and only one playback runs at a time. Clear messages cover a missing ani-cli, an episode that isn't released yet, a search that finds nothing (with a button to change the search), and failures.
+  - **Safety:** ani-cli runs without a shell, with the title as a single argument, and only one playback runs at a time. Clear messages cover a missing ani-cli or mpv, an episode that isn't released yet, a search that finds nothing (with a button to change the search), and failures.
+  - **Without ani-cli:** Preferences → Playback → Play With → Link or Command opens a web address or runs a program for the episode instead. `{title}`, `{query}`, `{episode}` and `{mal_id}` are filled in, for example `https://example.org/search?q={title}` or `vlc "/media/anime/{title}/{episode}.mkv"`. Commands run without a shell. AniCal can't tell how much you watched, so it offers "Mark Watched".
 - **Notifications.** While AniCal runs, you're told once per episode when an episode you follow becomes probably available. Each notification has Play and Open buttons, and more than three at once become a single summary.
   - Estimated times are never announced.
   - Nothing older than 12 hours is announced, so reopening the app after a break doesn't flood you.
@@ -60,7 +61,7 @@ This installs the `anical` command, a desktop entry, the icon and AppStream meta
 ## Requirements
 
 - Python ≥ 3.12
-- For playback: [`ani-cli`](https://github.com/pystardust/ani-cli) (tested with 5.1.6) and mpv
+- For playback: [`ani-cli`](https://github.com/pystardust/ani-cli) (tested with 5.1.0 and 5.1.6) and mpv. On Windows also Git for Windows; there, install ani-cli and mpv with scoop. On macOS install them with Homebrew.
 - GTK 4, libadwaita ≥ 1.7, and PyGObject, all from your distribution:
   - Arch / CachyOS: `pacman -S python-gobject gtk4 libadwaita`
   - Fedora: `dnf install python3-gobject gtk4 libadwaita`

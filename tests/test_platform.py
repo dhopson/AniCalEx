@@ -130,3 +130,54 @@ def test_keychain_errors_become_token_store_errors():
 
     with pytest.raises(TokenStoreError):
         KeychainTokenStore(Broken()).load()
+
+
+# Finding ani-cli, mpv and Git Bash (D23)
+
+from anical.platform.anicli import find_ani_cli, find_bash, find_player  # noqa: E402
+
+
+def touch(path: Path) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("")
+    return path
+
+
+def nowhere(_name):
+    return None
+
+
+def test_windows_finds_scoops_ani_cli_script_and_mpv(tmp_path):
+    script = touch(tmp_path / "scoop" / "apps" / "ani-cli" / "current" / "ani-cli")
+    mpv = touch(tmp_path / "scoop" / "apps" / "mpv" / "current" / "mpv.exe")
+    assert find_ani_cli(None, System.WINDOWS, tmp_path, nowhere) == str(script)
+    assert find_player(None, System.WINDOWS, tmp_path, nowhere) == str(mpv)
+
+
+def test_macos_falls_back_to_homebrew_when_path_is_bare(tmp_path, monkeypatch):
+    import anical.platform.anicli as anicli
+
+    brew = tmp_path / "opt" / "homebrew" / "bin"
+    touch(brew / "ani-cli")
+    touch(brew / "mpv")
+    monkeypatch.setattr(anicli, "_HOMEBREW", (brew,))
+    assert find_ani_cli(None, System.MACOS, tmp_path, nowhere) == str(brew / "ani-cli")
+    assert find_player(None, System.MACOS, tmp_path, nowhere) == str(brew / "mpv")
+    assert find_ani_cli(None, System.LINUX, tmp_path, nowhere) is None  # Linux only looks on PATH
+
+
+def test_a_setting_wins_and_must_exist(tmp_path):
+    custom = touch(tmp_path / "my tools" / "ani-cli")
+    assert find_ani_cli(str(custom), System.WINDOWS, tmp_path, nowhere) == str(custom)
+    assert find_ani_cli(str(tmp_path / "missing"), System.LINUX, tmp_path, lambda n: "/usr/bin/ani-cli") is None
+    assert find_player("mpv.com", System.WINDOWS, tmp_path, lambda n: f"C:/bin/{n}") == "C:/bin/mpv.com"
+
+
+def test_git_bash_search_order(tmp_path):
+    program_files = tmp_path / "Program Files"
+    default = touch(program_files / "Git" / "bin" / "bash.exe")
+    env = {"ProgramFiles": str(program_files), "LOCALAPPDATA": str(tmp_path / "Local")}
+    assert find_bash(None, tmp_path, env, lambda: []) == str(default)
+    registered = touch(tmp_path / "D" / "Git" / "bin" / "bash.exe")
+    assert find_bash(None, tmp_path, env, lambda: [tmp_path / "D" / "Git"]) == str(registered)
+    assert find_bash(str(tmp_path / "nope.exe"), tmp_path, env, lambda: []) is None

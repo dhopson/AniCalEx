@@ -17,18 +17,37 @@ from anical.db.settings import (
     DISPLAY_WEEK_START,
     NOTIFICATIONS_ENABLED,
     PLAYBACK_AUTO_MARK,
+    PLAYBACK_BACKEND,
+    PLAYBACK_BASH,
     PLAYBACK_EXECUTABLE,
+    PLAYBACK_EXTERNAL,
     PLAYBACK_MODE,
+    PLAYBACK_PLAYER,
     PLAYBACK_QUALITY,
 )
 from anical.domain.playback import MODES, QUALITIES
 from anical.sync.mal_sync import ACCOUNT, USERNAME
 from anical.platform.timezone import available_timezones, system_timezone_name
 from anical.ui.display import DisplaySettings
-from anical.ui.playback_controller import PlaybackController
+from anical.platform import System, current
+from anical.ui.playback_controller import BACKENDS, PlaybackController
 from anical.ui.sync_controller import SyncController
 
 _QUALITY_LABELS = {"best": "Best Available", "worst": "Lowest"}
+_INSTALL_HINTS = {
+    System.LINUX: {
+        "ani-cli": "Install ani-cli, or enter the full path to it",
+        "mpv": "Install mpv, or enter the full path to it",
+    },
+    System.MACOS: {
+        "ani-cli": "Install it with Homebrew (brew install ani-cli), or enter the full path to it",
+        "mpv": "Install it with Homebrew (brew install mpv), or enter the full path to it",
+    },
+    System.WINDOWS: {
+        "ani-cli": "Install it with scoop (scoop install ani-cli), or enter the path to the ani-cli script",
+        "mpv": "Install it with scoop (scoop install mpv), or enter the path to mpv.exe",
+    },
+}
 
 
 def format_time(epoch: int | None) -> str:
@@ -123,30 +142,50 @@ class PreferencesDialog(Adw.PreferencesDialog):
         playback = self._playback
         config = playback.config
         page = Adw.PreferencesPage(title="Playback", icon_name="media-playback-start-symbolic")
+        system = current()
 
-        program = Adw.PreferencesGroup(title="ani-cli")
-        command = Adw.EntryRow(title="ani-cli Command or Path", show_apply_button=True, text=config.executable)
-        status = Adw.ActionRow(use_markup=False)
+        method = Adw.PreferencesGroup()
+        backend = Adw.ComboRow(title="Play With", model=Gtk.StringList.new(["ani-cli", "Link or Command"]))
+        backend.set_selected(BACKENDS.index(playback.backend))
+        method.add(backend)
+        page.add(method)
 
-        def update_status() -> None:
-            found = playback.resolve_executable()
-            status.set_title("Found" if found else "Not Found")
-            status.set_subtitle(found or "Install ani-cli, or enter the full path to it")
+        programs = Adw.PreferencesGroup(
+            title="ani-cli",
+            description="AniCal starts ani-cli, which plays in mpv. Leave a field empty to find the program automatically.",
+        )
+        self._program_row(
+            programs, "ani-cli", PLAYBACK_EXECUTABLE, config.executable, playback.resolve_executable,
+            _INSTALL_HINTS[system]["ani-cli"],
+        )
+        self._program_row(
+            programs, "mpv", PLAYBACK_PLAYER, config.player, playback.resolve_player, _INSTALL_HINTS[system]["mpv"]
+        )
+        if system is System.WINDOWS:
+            self._program_row(
+                programs, "Git Bash", PLAYBACK_BASH, config.bash or "", playback.resolve_bash,
+                "Install Git for Windows, or enter the path to bash.exe",
+            )
+        page.add(programs)
 
-        def apply(row: Adw.EntryRow) -> None:
-            text = row.get_text().strip()
-            playback.set_setting(PLAYBACK_EXECUTABLE, None if text in ("", "ani-cli") else text)
-            update_status()
-
-        command.connect("apply", apply)
-        update_status()
-        program.add(command)
-        program.add(status)
-        page.add(program)
+        external = Adw.PreferencesGroup(
+            title="Link or Command",
+            description=(
+                "Opened for the episode instead of ani-cli: a web address, or a program with its arguments. "
+                "{title}, {query} (the show’s search text), {episode} and {mal_id} are filled in. "
+                "Mark episodes watched yourself when you’re done."
+            ),
+        )
+        template = Adw.EntryRow(title="Link or Command", show_apply_button=True, text=playback.external_template)
+        template.connect(
+            "apply", lambda row: playback.set_setting(PLAYBACK_EXTERNAL, row.get_text().strip() or None)
+        )
+        external.add(template)
+        page.add(external)
 
         options = Adw.PreferencesGroup(
             title="Episodes",
-            description="Watch progress is tracked with mpv, ani-cli’s default player. With other players you’ll be asked.",
+            description="mpv reports how far you watched, so finished episodes can be marked automatically.",
         )
         mode = Adw.ComboRow(title="Audio", model=Gtk.StringList.new(["Subtitled", "Dubbed"]))
         mode.set_selected(MODES.index(config.mode))
@@ -170,7 +209,40 @@ class PreferencesDialog(Adw.PreferencesDialog):
         auto_mark.connect("notify::active", lambda row, _p: playback.set_setting(PLAYBACK_AUTO_MARK, row.get_active()))
         options.add(auto_mark)
         page.add(options)
+
+        def show_backend() -> None:
+            uses_ani_cli = BACKENDS[backend.get_selected()] == "ani-cli"
+            for group in (programs, options):
+                group.set_visible(uses_ani_cli)
+            external.set_visible(not uses_ani_cli)
+
+        def change_backend(row: Adw.ComboRow, _param) -> None:
+            playback.set_setting(PLAYBACK_BACKEND, BACKENDS[row.get_selected()])
+            show_backend()
+
+        backend.connect("notify::selected", change_backend)
+        show_backend()
         return page
+
+    def _program_row(self, group, name, key, current_value, resolve, hint) -> None:
+        """An entry for a program's location plus a row saying where it was found."""
+        text = "" if current_value in ("ani-cli", "mpv") else current_value
+        entry = Adw.EntryRow(title=f"{name} Location", show_apply_button=True, text=text)
+        status = Adw.ActionRow(use_markup=False)
+
+        def update() -> None:
+            found = resolve()
+            status.set_title(f"{name} Found" if found else f"{name} Not Found")
+            status.set_subtitle(found or hint)
+
+        def apply(row: Adw.EntryRow) -> None:
+            self._playback.set_setting(key, row.get_text().strip() or None)
+            update()
+
+        entry.connect("apply", apply)
+        update()
+        group.add(entry)
+        group.add(status)
 
     def _data_page(self) -> Adw.PreferencesPage:
         page = Adw.PreferencesPage(title="Data", icon_name="drive-harddisk-symbolic")

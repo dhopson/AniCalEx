@@ -17,6 +17,7 @@ from anical.domain.playback import (
     build_launch,
     decide,
     error_message,
+    expand_external,
     history_for,
     parse_history,
     parse_progress,
@@ -25,6 +26,7 @@ from anical.domain.playback import (
 from anical.playback import install_helpers
 
 FAKE_ANI_CLI = str(Path(__file__).parent / "fake_ani_cli.py")
+FAKE_MPV = str(Path(__file__).parent / "fake_mpv.py")
 RED = "\033[1;31m{}\033[0m"
 
 
@@ -33,11 +35,11 @@ def helpers(tmp_path):
     return install_helpers(tmp_path / "helpers")
 
 
-def launch_for(tmp_path, helpers, mapping=None, episode=5, config=PlaybackConfig()):
-    session = tmp_path / "session"
+def launch_for(tmp_path, helpers, mapping=None, episode=5, config=PlaybackConfig(player=FAKE_MPV), session=None):
+    session = session or tmp_path / "session"
     session.mkdir(exist_ok=True)
     mapping = mapping or PlaybackMapping(1, "Some Show")
-    return build_launch(config, FAKE_ANI_CLI, mapping, episode, session, *helpers)
+    return build_launch(config, FAKE_ANI_CLI, mapping, episode, session, *helpers, os.environ.get("PATH", ""))
 
 
 def run(launch, answer=None, **fake_env):
@@ -75,19 +77,26 @@ def test_sanitize_query(title, query):
 def test_launch_uses_an_argument_vector(tmp_path, helpers):
     title = "Show; rm -rf ~ $(id) `x` \"q\""
     mapping = PlaybackMapping(1, title, "Chosen", episode_offset=12, mode="dub")
-    launch = launch_for(tmp_path, helpers, mapping, episode=3, config=PlaybackConfig(quality="720p"))
+    launch = launch_for(tmp_path, helpers, mapping, episode=3, config=PlaybackConfig(quality="720p", player="/opt/mpv"))
     assert launch.argv == [FAKE_ANI_CLI, "--no-detach", "--exit-after-play", "--dub", "-q", "720p", "-e", "15", title]
     assert launch.env["ANICAL_PICK_TITLE"] == "Chosen"
-    assert f"anical-out={launch.progress_path}" in launch.env["ANI_CLI_PLAYER_FLAGS"]
+    # Helpers are called by name from a folder put first on PATH (D23).
+    assert (launch.env["ANI_CLI_MENU"], launch.env["ANI_CLI_PLAYER"]) == ("anical-pick", "anical-mpv")
+    assert launch.env["PATH"].split(os.pathsep)[0] == str(helpers[0])
+    assert launch.env["ANICAL_MPV"] == "/opt/mpv"
+    assert launch.env["ANICAL_PROGRESS_OUT"] == str(launch.progress_path)
+    assert "ANI_CLI_PLAYER_FLAGS" not in launch.env
+
+
+def test_windows_launch_runs_ani_cli_with_git_bash(tmp_path, helpers):
+    config = PlaybackConfig(bash=r"C:\Program Files\Git\bin\bash.exe")
+    launch = launch_for(tmp_path, helpers, episode=2, config=config)
+    assert launch.argv[:2] == [r"C:\Program Files\Git\bin\bash.exe", FAKE_ANI_CLI]
 
 
 def test_launch_rejects_unusable_input(tmp_path, helpers):
     with pytest.raises(PlaybackError, match="not a valid"):
         launch_for(tmp_path, helpers, PlaybackMapping(1, "x", episode_offset=-5), episode=3)
-    spaced = tmp_path / "has space"
-    spaced.mkdir()
-    with pytest.raises(PlaybackError, match="spaces"):
-        build_launch(PlaybackConfig(), "ani-cli", PlaybackMapping(1, "x"), 1, spaced, *helpers)
 
 
 @pytest.mark.parametrize(
@@ -148,6 +157,25 @@ def test_single_result_needs_no_picker(tmp_path, helpers):
     assert code == 0 and progress.reason == "eof"
 
 
+def test_player_shim_starts_mpv_with_the_progress_script(tmp_path, helpers):
+    # Paths with spaces were impossible with ANI_CLI_PLAYER_FLAGS; through the shim they work.
+    session = tmp_path / "Application Support" / "session"
+    session.mkdir(parents=True)
+    log = tmp_path / "mpv.json"
+    launch = launch_for(tmp_path, helpers, session=session)
+    code, progress, _ = run(launch, progress='{"reason":"quit","percent":40}', mpv_log=str(log))
+    assert code == 0 and progress.percent == 40
+    args = json.loads(log.read_text())
+    assert args[0] == f"--script={helpers[1]}"
+    assert args[1] == f"--script-opts=anical-out={launch.progress_path}"
+    assert "--referrer=https://embed.example/" in args and args[-1] == "https://stream.example/ep.m3u8"
+
+
+def test_player_exit_status_comes_back(tmp_path, helpers):
+    code, progress, _ = run(launch_for(tmp_path, helpers), exit="3")
+    assert code == 3 and progress is None
+
+
 def test_remembered_title_is_picked_automatically(tmp_path, helpers):
     mapping = PlaybackMapping(1, "Show", result_title="Show Season 2")
     code, progress, _ = run(
@@ -186,10 +214,49 @@ def test_unreleased_episode(tmp_path, helpers):
 
 
 def test_picker_quits_ani_cli_menu_after_non_mpv_playback(helpers):
-    picker, _ = helpers
+    picker = helpers[0] / "anical-pick"
     reply = subprocess.run([str(picker), "Playing episode 5 of Show... "], input="next\nreplay\nquit\n",
                            capture_output=True, text=True)
     assert reply.stdout.strip() == "quit"
+
+
+def test_picker_reads_and_answers_utf8(tmp_path, helpers):
+    # The picker forces UTF-8 itself; Windows would otherwise use the console code page (D23).
+    env = {**os.environ, "ANICAL_PICK_TITLE": "Spike Show: Kōhen"}
+    reply = subprocess.run(
+        [str(helpers[0] / "anical-pick"), "Select anime: "], input="1 Spike Show\n2 Spike Show: Kōhen\n".encode(),
+        capture_output=True, env=env,
+    )
+    assert reply.stdout == "2 Spike Show: Kōhen\n".encode()
+
+
+# Link or command ("external")
+
+VALUES = {"title": "Re:Zero & Co", "query": "Re Zero Co", "episode": "3", "mal_id": "31240"}
+
+
+def test_external_link_encodes_values():
+    target = expand_external("https://example.org/search?q={title}&ep={episode}&id={mal_id}", VALUES)
+    assert target.url == "https://example.org/search?q=Re%3AZero%20%26%20Co&ep=3&id=31240" and target.argv is None
+
+
+def test_external_command_keeps_each_value_in_its_argument():
+    target = expand_external('vlc "/media/anime/{title}/{episode}.mkv" --fullscreen', VALUES)
+    assert target.argv == ["vlc", "/media/anime/Re:Zero & Co/3.mkv", "--fullscreen"]
+    hostile = expand_external("player {title}", {**VALUES, "title": "x; rm -rf ~ $(id)"})
+    assert hostile.argv == ["player", "x; rm -rf ~ $(id)"]  # no shell, one argument
+
+
+def test_external_command_with_windows_paths():
+    target = expand_external(r'"C:\Program Files\VLC\vlc.exe" "D:\Anime\{title}\{episode}.mkv"', VALUES, windows=True)
+    assert target.argv == [r"C:\Program Files\VLC\vlc.exe", r"D:\Anime\Re:Zero & Co\3.mkv"]
+    assert expand_external(r"C:\tools\player.exe {episode}", VALUES, windows=True).argv == [r"C:\tools\player.exe", "3"]
+
+
+@pytest.mark.parametrize("template", ["", "   ", 'vlc "unclosed'])
+def test_external_rejects_unusable_templates(template):
+    with pytest.raises(PlaybackError):
+        expand_external(template, VALUES)
 
 
 # Repository

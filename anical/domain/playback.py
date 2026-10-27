@@ -1,13 +1,18 @@
 """Playback through ani-cli: launch command, outcome rules, history parsing.
 
-How a launch works (verified against ani-cli 5.1.6):
+How a launch works (verified against ani-cli 5.1.0 and 5.1.6, D14 and D23):
 - `ani-cli --no-detach --exit-after-play -e N QUERY` searches, plays episode
-  N in mpv in the foreground, and exits with mpv's exit code.
-- ANI_CLI_MENU replaces fzf. AniCal's picker gets the search results as
-  "N Title" lines and answers with the chosen line (only consulted when the
-  search returns more than one result).
-- ANI_CLI_PLAYER_FLAGS loads a small mpv script that records how far playback
-  got and why it ended ("eof" or "quit"), because mpv exits 0 for both.
+  N in the foreground, and exits with the player's exit code. On Windows it
+  runs as `bash.exe ani-cli ...` (Git for Windows).
+- AniCal's helpers are found by name on a PATH that AniCal prepends to, so
+  no path has to survive ani-cli's word splitting (paths with spaces work):
+  - ANI_CLI_MENU=anical-pick replaces fzf. It gets the search results as
+    "N Title" lines and answers with the chosen line (only consulted when
+    the search returns more than one result).
+  - ANI_CLI_PLAYER=anical-mpv. ani-cli treats any player whose name contains
+    "mpv" as mpv, so the shim gets mpv's options and starts the real mpv
+    with a small script that records how far playback got and why it ended
+    ("eof" or "quit"), because mpv exits 0 for both.
 
 An episode is never marked watched just because it was launched.
 """
@@ -15,8 +20,11 @@ An episode is never marked watched just because it was launched.
 from __future__ import annotations
 
 import json
+import os
 import re
+import shlex
 import unicodedata
+import urllib.parse
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -37,6 +45,7 @@ class PlaybackError(Exception):
 
 class Outcome(StrEnum):
     WATCHED = "watched"  # reached the end or the threshold
+    OPENED = "opened"  # handed to a link or command; AniCal can't follow it
     PARTIAL = "partial"  # stopped partway
     UNKNOWN = "unknown"  # played, but the player reported no progress (not mpv)
     EPISODE_NOT_FOUND = "episode_not_found"
@@ -71,6 +80,8 @@ class PlaybackConfig:
     mode: str = "sub"
     quality: str = "best"
     auto_mark: bool = True
+    player: str = "mpv"
+    bash: str | None = None  # Windows: Git for Windows' bash.exe
 
 
 @dataclass(frozen=True)
@@ -119,32 +130,75 @@ def build_launch(
     mapping: PlaybackMapping,
     episode_number: int,
     session_dir: Path,
-    picker: Path,
+    helpers: Path,
     progress_script: Path,
+    base_path: str = "",
 ) -> Launch:
     """The argument vector and environment for one playback. No shell is involved:
-    the query is a single argument whatever characters it contains."""
+    the query is a single argument whatever characters it contains. `helpers` is
+    the folder holding anical-pick and anical-mpv; it goes first on PATH."""
     episode = mapping.anicli_episode(episode_number)
     if episode < 1:
         raise PlaybackError(f"Episode {episode_number} with offset {mapping.episode_offset} is not a valid ani-cli episode")
     progress_path = session_dir / "progress.json"
-    # ani-cli word-splits ANI_CLI_PLAYER_FLAGS, so these paths must not contain whitespace.
-    for path in (progress_script, progress_path):
-        if any(c.isspace() for c in str(path)):
-            raise PlaybackError(f"Can’t pass a path containing spaces to the player: {path}")
-    argv = [executable, "--no-detach", "--exit-after-play"]
+    argv = ([config.bash] if config.bash else []) + [executable, "--no-detach", "--exit-after-play"]
     if (mapping.mode or config.mode) == "dub":
         argv.append("--dub")
     if config.quality != "best":
         argv += ["-q", config.quality]
     argv += ["-e", str(episode), mapping.query]
     env = {
-        "ANI_CLI_MENU": str(picker),
-        "ANI_CLI_PLAYER_FLAGS": f"--script={progress_script} --script-opts=anical-out={progress_path}",
+        "PATH": os.pathsep.join(p for p in (str(helpers), base_path) if p),
+        "ANI_CLI_MENU": "anical-pick",
+        "ANI_CLI_PLAYER": "anical-mpv",
+        "ANICAL_MPV": config.player,
+        "ANICAL_PROGRESS_SCRIPT": str(progress_script),
+        "ANICAL_PROGRESS_OUT": str(progress_path),
         "ANICAL_PICK_DIR": str(session_dir),
         "ANICAL_PICK_TITLE": mapping.result_title or "",
     }
     return Launch(argv, env, progress_path)
+
+
+PLACEHOLDERS = ("title", "query", "episode", "mal_id")
+_URL = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
+
+
+@dataclass(frozen=True)
+class External:
+    """Where "Open a link or run a command" sends an episode: a URL to open, or
+    a command to run (an argument vector; no shell)."""
+
+    url: str | None = None
+    argv: list[str] | None = None
+
+
+def expand_external(template: str, values: dict[str, str], windows: bool = False) -> External:
+    """Fill {title}, {query}, {episode} and {mal_id} into the user's template.
+    A template that starts with a URL scheme (https:, or an app's own scheme)
+    is a link, and the values are URL-encoded into it. Anything else is a
+    command, split into arguments like a shell would, with each value staying
+    inside its argument whatever it contains."""
+    template = template.strip()
+    if not template:
+        raise PlaybackError("Set a link or command in Preferences → Playback")
+
+    def fill(text: str, encode) -> str:
+        for name in PLACEHOLDERS:
+            text = text.replace("{" + name + "}", encode(values.get(name, "")))
+        return text
+
+    first = template.split(None, 1)[0]
+    if _URL.match(first) and not (windows and re.match(r"^[A-Za-z]:[\\/]", first)):  # C:\... is a path
+        return External(url=fill(template, lambda v: urllib.parse.quote(v, safe="")))
+    try:
+        # Windows paths use backslashes, which POSIX splitting treats as escapes.
+        parts = shlex.split(template, posix=not windows)
+    except ValueError as e:
+        raise PlaybackError(f"Can’t read the command: {e}") from e
+    if windows:
+        parts = [p[1:-1] if len(p) > 1 and p[0] == p[-1] and p[0] in "\"'" else p for p in parts]
+    return External(argv=[fill(part, str) for part in parts])
 
 
 def parse_progress(text: str | None) -> Progress | None:

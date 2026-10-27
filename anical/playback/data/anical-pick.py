@@ -1,6 +1,6 @@
 """AniCal's picker for ani-cli (set as ANI_CLI_MENU).
 
-ani-cli runs it as `anical-pick PROMPT` with choices on stdin, one per line,
+ani-cli runs it as `anical-pick PROMPT` (found on PATH) with choices on stdin, one per line,
 as "N Title", and reads the chosen line from stdout (an empty answer cancels).
 
 - If ANICAL_PICK_TITLE matches exactly one choice, that choice is printed.
@@ -34,6 +34,10 @@ def write_atomic(path, data):
 
 
 def main():
+    # ani-cli talks UTF-8 with "\n" endings; a Windows console program would
+    # otherwise read the locale code page and answer with "\r\n".
+    sys.stdin.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8", newline="\n")
     prompt = sys.argv[-1] if len(sys.argv) > 1 else ""
     lines = [line.rstrip("\n") for line in sys.stdin if line.strip()]
     if prompt.startswith("Playing episode"):

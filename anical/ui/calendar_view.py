@@ -202,7 +202,7 @@ class CalendarView(Adw.Bin):
     def _entry_menu(self, entry: CalendarEntry, now: int) -> Gio.Menu:
         menu = Gio.Menu()
         if entry.airs_at <= now:
-            item = Gio.MenuItem.new("Play in ani-cli", None)
+            item = Gio.MenuItem.new("Play", None)
             item.set_action_and_target_value("cal.play", GLib.Variant.new_int64(entry.episode_id))
             menu.append_item(item)
         item = Gio.MenuItem.new("Open Show", None)
@@ -267,7 +267,7 @@ class CalendarView(Adw.Bin):
         if entry.airs_at <= now:
             play = Gtk.Button(
                 icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                tooltip_text="Play in ani-cli",
+                tooltip_text="Play",
             )
             play.update_property([Gtk.AccessibleProperty.LABEL], [f"Play {self._name(entry)} episode {entry.number}"])
             play.connect("clicked", lambda *_: self._window.play_episode(entry.episode_id))

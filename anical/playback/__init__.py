@@ -10,24 +10,37 @@ from pathlib import Path
 from anical.domain.playback import HistoryEntry, PlaybackError, parse_history
 
 
-def install_helpers(directory: Path) -> tuple[Path, Path]:
-    """Write the picker and the mpv progress script into `directory`.
+HELPERS = ("anical-pick", "anical-mpv")
 
-    Returns (picker, progress_script). Rewritten on every start so they always
-    match the running version of AniCal.
+
+def install_helpers(directory: Path) -> tuple[Path, Path]:
+    """Make anical-pick and anical-mpv callable by name from `directory`, and
+    write the mpv progress script there.
+
+    Returns (helpers folder, progress script). A frozen build (Windows, macOS)
+    ships the helpers as programs in its own `helpers` folder. Otherwise they
+    are written as scripts for this Python, rewritten on every start so they
+    always match the running version of AniCal.
     """
-    if any(c.isspace() for c in sys.executable):
-        raise PlaybackError(f"The Python path contains spaces, which a script header can’t express: {sys.executable}")
     directory.mkdir(parents=True, exist_ok=True)
     data = importlib.resources.files("anical.playback") / "data"
-
-    picker = directory / "anical-pick"
-    source = (data / "anical-pick.py").read_text(encoding="utf-8")
-    _write(picker, f"#!{sys.executable} -I\n{source}", mode=0o755)
-
     progress_script = directory / "anical-progress.lua"
     _write(progress_script, (data / "anical-progress.lua").read_text(encoding="utf-8"), mode=0o644)
-    return picker, progress_script
+
+    if getattr(sys, "frozen", False):
+        bundled = Path(sys.executable).parent / "helpers"
+        missing = [name for name in HELPERS if not any(bundled.glob(f"{name}*"))]
+        if missing:
+            raise PlaybackError(f"This build is missing its playback helpers ({', '.join(missing)}) in {bundled}")
+        return bundled, progress_script
+    if os.name == "nt":
+        raise PlaybackError("Playback on Windows needs the helper programs from a packaged build")
+    if any(c.isspace() for c in sys.executable):
+        raise PlaybackError(f"The Python path contains spaces, which a script header can’t express: {sys.executable}")
+    for name in HELPERS:
+        source = (data / f"{name}.py").read_text(encoding="utf-8")
+        _write(directory / name, f"#!{sys.executable} -I\n{source}", mode=0o755)
+    return directory, progress_script
 
 
 def history_path() -> Path:

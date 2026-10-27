@@ -160,7 +160,7 @@ class ShowPage(Adw.NavigationPage):
         if next_episode := self._next_to_play(episode_list, airings):
             play = Gtk.Button(
                 label=f"Play {next_episode.label}", halign=Gtk.Align.START, margin_top=6,
-                css_classes=["pill", "suggested-action"], tooltip_text="Open the next unwatched episode in ani-cli",
+                css_classes=["pill", "suggested-action"], tooltip_text="Play the next unwatched episode",
             )
             play.connect("clicked", lambda *_: self._window.play_episode(next_episode.id))
             titles.append(play)
@@ -310,7 +310,7 @@ class ShowPage(Adw.NavigationPage):
             aired = airing is None or airing.airs_at <= now
             play = Gtk.Button(
                 icon_name="media-playback-start-symbolic", valign=Gtk.Align.CENTER, css_classes=["flat"],
-                tooltip_text="Play in ani-cli" if aired else "Not aired yet", sensitive=aired,
+                tooltip_text="Play" if aired else "Not aired yet", sensitive=aired,
             )
             play.update_property([Gtk.AccessibleProperty.LABEL], [f"Play {episode.label}"])
             play.connect("clicked", lambda *_: self._window.play_episode(episode.id))

@@ -4,14 +4,15 @@
 Behaviour is set through environment variables:
   FAKE_RESULTS   search results, "|"-separated (default: one result, the query)
   FAKE_EPISODES  highest available episode (default 12)
-  FAKE_PROGRESS  JSON the mpv progress script would write ("" = player wrote nothing)
-  FAKE_EXIT      exit status after "playing" (default 0)
   FAKE_LOG       file to record argv and relevant environment into
+
+Like ani-cli, it calls ANI_CLI_MENU and ANI_CLI_PLAYER by name (found on PATH)
+and, when the player's name contains "mpv", passes it mpv options and exits with
+its status. tests/fake_mpv.py stands in for the real mpv behind anical-mpv.
 """
 
 import json
 import os
-import re
 import subprocess
 import sys
 
@@ -38,7 +39,7 @@ def main():
     if log := os.environ.get("FAKE_LOG"):
         with open(log, "w", encoding="utf-8") as file:
             json.dump({"argv": sys.argv[1:], "menu": os.environ.get("ANI_CLI_MENU"),
-                       "player_flags": os.environ.get("ANI_CLI_PLAYER_FLAGS"),
+                       "player": os.environ.get("ANI_CLI_PLAYER"),
                        "stdin_is_terminal": os.isatty(0)}, file)
     if not query:
         die("No query")
@@ -59,12 +60,12 @@ def main():
     if episode is None or episode > int(os.environ.get("FAKE_EPISODES", "12")):
         die("Invalid episode!")
 
-    progress = os.environ.get("FAKE_PROGRESS")
-    match = re.search(r"--script-opts=anical-out=(\S+)", os.environ.get("ANI_CLI_PLAYER_FLAGS", ""))
-    if progress and match:
-        with open(match.group(1), "w", encoding="utf-8") as file:
-            file.write(progress)
-    sys.exit(int(os.environ.get("FAKE_EXIT", "0")))
+    player = os.environ.get("ANI_CLI_PLAYER", "mpv")
+    if "mpv" not in player:
+        sys.exit(0)  # ani-cli detaches other players and can't report anything
+    # ani-cli's *mpv* case with --no-detach --exit-after-play: run it in the foreground, exit with its status.
+    title = f"--force-media-title={query} Episode {episode}"
+    sys.exit(subprocess.run([player, "--referrer=https://embed.example/", title, "https://stream.example/ep.m3u8"]).returncode)
 
 
 if __name__ == "__main__":

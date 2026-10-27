@@ -18,7 +18,7 @@ Adw.init()
 from anical.db.schedule import ScheduleRepository  # noqa: E402
 from anical.db.playback import PlaybackRepository  # noqa: E402
 from anical.domain.playback import PlaybackMapping  # noqa: E402
-from anical.db.settings import PLAYBACK_AUTO_MARK, PLAYBACK_EXECUTABLE  # noqa: E402
+from anical.db.settings import PLAYBACK_AUTO_MARK, PLAYBACK_EXECUTABLE, PLAYBACK_PLAYER  # noqa: E402
 from anical.db.settings import DISPLAY_ENGLISH_TITLES, DISPLAY_TIMEZONE, MAL_CLIENT_ID, MAL_MODE, MAL_USERNAME, SettingsRepository  # noqa: E402
 from anical.domain.models import AiringStatus, AnimeDraft, WatchState  # noqa: E402
 from anical.net.http import NetworkError, Response  # noqa: E402
@@ -79,6 +79,7 @@ def display(settings):
 @pytest.fixture
 def playback(repo, settings, conn, tmp_path):
     settings.set(PLAYBACK_EXECUTABLE, str(Path(__file__).parent / "fake_ani_cli.py"))
+    settings.set(PLAYBACK_PLAYER, str(Path(__file__).parent / "fake_mpv.py"))
     return PlaybackController(repo, PlaybackRepository(conn), settings, tmp_path / "run")
 
 
@@ -332,9 +333,9 @@ def test_calendar_can_use_english_titles(window, repo, display):
         AnimeDraft(title="Kusuriya no Hitorigoto", title_en="The Apothecary Diaries", airing_status=AiringStatus.AIRING)
     )
     plain = repo.create_anime(AnimeDraft(title="Only Romaji", airing_status=AiringStatus.AIRING))
-    now = int(time.time())
+    now = int(time.time())  # not an hour ahead: after 23:00 in the display zone that is tomorrow
     for show in (anime_id, plain):
-        window.schedule.set_user_airings(show, [(1, now + 3600)])
+        window.schedule.set_user_airings(show, [(1, now)])
     window.calendar_view._modes.set_active_name("day")
     window.library_changed()
     assert "Kusuriya no Hitorigoto" in widget_texts(window.calendar_view)

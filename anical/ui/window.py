@@ -137,7 +137,7 @@ class MainWindow(Adw.ApplicationWindow):
     def play_episode(self, episode_id: int) -> None:
         if problem := self.playback.play(episode_id):
             self.toast(problem)
-        else:
+        elif self.playback.playing:  # ani-cli; an opened link or command reports straight away
             self.toast(f"Opening {self.playback.playing} in ani-cli…")
 
     def open_playback_settings(self, anime_id: int) -> None:
@@ -165,6 +165,8 @@ class MainWindow(Adw.ApplicationWindow):
                 self.toast(f"Stopped {report.label} at {result.percent or 0:.0f}%", "Mark Watched", mark_watched)
             case Outcome.UNKNOWN:
                 self.toast(f"Did you finish {report.label}?", "Mark Watched", mark_watched)
+            case Outcome.OPENED:
+                self.toast(f"Opened {report.label}", "Mark Watched", mark_watched)
             case Outcome.EPISODE_NOT_FOUND:
                 self.toast(f"{report.label} isn’t available in ani-cli yet")
             case Outcome.SHOW_NOT_FOUND:

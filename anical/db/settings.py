@@ -21,6 +21,10 @@ PLAYBACK_EXECUTABLE = "playback.executable"
 PLAYBACK_MODE = "playback.mode"  # "sub" or "dub"
 PLAYBACK_QUALITY = "playback.quality"
 PLAYBACK_AUTO_MARK = "playback.auto_mark"  # mark watched at end/90% without asking
+PLAYBACK_BACKEND = "playback.backend"  # "ani-cli" (default) or "external" (the link or command below)
+PLAYBACK_EXTERNAL = "playback.external"  # link or command template with {title} {query} {episode} {mal_id}
+PLAYBACK_PLAYER = "playback.player"  # the real mpv anical-mpv starts; unset = found automatically
+PLAYBACK_BASH = "playback.bash"  # Windows: Git Bash's bash.exe; unset = found automatically
 NOTIFICATIONS_ENABLED = "notifications.enabled"
 
 # Sync-state keys
