@@ -5,17 +5,16 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
-from gi.repository import Gio, GLib
+from gi.repository import GLib
 
 from anical.db.schedule import ScheduleRepository
 from anical.db.settings import NOTIFICATIONS_ENABLED, SettingsRepository
 from anical.domain.calendar import CalendarEntry
 from anical.domain.notifications import MAX_AGE_S, SUMMARY_THRESHOLD, to_announce
+from anical.platform.notify import Button, Notice, Send
 from anical.ui.display import DisplaySettings
 
 CHECK_INTERVAL_S = 5 * 60
-
-Send = Callable[[str, Gio.Notification], None]
 
 
 class Notifier:
@@ -74,18 +73,17 @@ class Notifier:
     def _name(self, entry: CalendarEntry) -> str:
         return entry.display_title(self._display.english_titles)
 
-    def _single(self, entry: CalendarEntry) -> Gio.Notification:
-        notification = Gio.Notification.new(f"{self._name(entry)}: Episode {entry.number}")
-        notification.set_body("New episode, probably available to watch now")
-        notification.set_default_action_and_target("app.show-anime", GLib.Variant.new_int64(entry.anime_id))
-        notification.add_button_with_target("Play", "app.play-episode", GLib.Variant.new_int64(entry.episode_id))
-        return notification
+    def _single(self, entry: CalendarEntry) -> Notice:
+        return Notice(
+            f"{self._name(entry)}: Episode {entry.number}",
+            "New episode, probably available to watch now",
+            "app.show-anime",
+            entry.anime_id,
+            (Button("Play", "app.play-episode", entry.episode_id),),
+        )
 
-    def _summary(self, due: list[CalendarEntry]) -> Gio.Notification:
-        notification = Gio.Notification.new(f"{len(due)} New Episodes Available")
+    def _summary(self, due: list[CalendarEntry]) -> Notice:
         lines = [f"{self._name(e)}: Episode {e.number}" for e in due[:6]]
         if len(due) > 6:
             lines.append(f"…and {len(due) - 6} more")
-        notification.set_body("\n".join(lines))
-        notification.set_default_action("app.show-unwatched")
-        return notification
+        return Notice(f"{len(due)} New Episodes Available", "\n".join(lines), "app.show-unwatched")

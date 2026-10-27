@@ -23,7 +23,8 @@ from anical.db.settings import (
 )
 from anical.domain.playback import MODES, QUALITIES
 from anical.sync.mal_sync import ACCOUNT, USERNAME
-from anical.ui.display import DisplaySettings, available_timezones, system_timezone_name
+from anical.platform.timezone import available_timezones, system_timezone_name
+from anical.ui.display import DisplaySettings
 from anical.ui.playback_controller import PlaybackController
 from anical.ui.sync_controller import SyncController
 

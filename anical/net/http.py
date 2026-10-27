@@ -6,7 +6,10 @@ never touch the network.
 
 from __future__ import annotations
 
+import functools
 import json
+import ssl
+import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -50,6 +53,18 @@ class HttpClient(Protocol):
     ) -> Response: ...
 
 
+@functools.cache
+def tls_context() -> ssl.SSLContext:
+    """The system's CA certificates, except in a frozen build (Windows and
+    macOS bundles), where the system's OpenSSL looks for them in the build
+    machine's paths. Those use the bundled certifi file instead (D22)."""
+    if getattr(sys, "frozen", False):
+        import certifi
+
+        return ssl.create_default_context(cafile=certifi.where())
+    return ssl.create_default_context()
+
+
 class UrllibClient:
     def __init__(self, timeout: float = 20):
         self._timeout = timeout
@@ -70,7 +85,7 @@ class UrllibClient:
         for name, value in (headers or {}).items():
             request.add_header(name, value)
         try:
-            with urllib.request.urlopen(request, timeout=self._timeout) as reply:
+            with urllib.request.urlopen(request, timeout=self._timeout, context=tls_context()) as reply:
                 return Response(reply.status, reply.read(), dict(reply.headers.items()))
         except urllib.error.HTTPError as e:
             return Response(e.code, e.read(), dict(e.headers.items()))

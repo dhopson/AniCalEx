@@ -73,3 +73,18 @@ def test_disabled_notifications_still_consume_the_backlog(setup):
     assert notifier.check() == 1 and sent == []
     settings.set(NOTIFICATIONS_ENABLED, True)
     assert notifier.check() == 0  # nothing old is announced after re-enabling
+
+
+def test_single_notification_plays_that_episode(setup):
+    repo, schedule, _settings, notifier, _sent = setup
+    sent = []
+    notifier._send = lambda key, notice: sent.append(notice)
+    anime_id = airing_show(repo, schedule, "A", 3)
+    notifier.check()
+    notice, = sent
+    assert (notice.action, notice.target) == ("app.show-anime", anime_id)
+    button, = notice.buttons
+    assert (button.label, button.action) == ("Play", "app.play-episode")
+    from anical.platform.notify import to_gio
+
+    assert to_gio(notice) is not None

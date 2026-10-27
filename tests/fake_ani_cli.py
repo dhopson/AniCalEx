@@ -38,7 +38,8 @@ def main():
     if log := os.environ.get("FAKE_LOG"):
         with open(log, "w", encoding="utf-8") as file:
             json.dump({"argv": sys.argv[1:], "menu": os.environ.get("ANI_CLI_MENU"),
-                       "player_flags": os.environ.get("ANI_CLI_PLAYER_FLAGS")}, file)
+                       "player_flags": os.environ.get("ANI_CLI_PLAYER_FLAGS"),
+                       "stdin_is_terminal": os.isatty(0)}, file)
     if not query:
         die("No query")
 

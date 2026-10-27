@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import functools
-import os
 import zoneinfo
 from zoneinfo import ZoneInfo
 
-from gi.repository import Gio, GLib, GObject
+from gi.repository import Gio, GObject
 
 from anical.db.settings import (
     AVAILABILITY_LAG_HOURS,
@@ -17,27 +15,9 @@ from anical.db.settings import (
     SettingsRepository,
 )
 from anical.domain.calendar import DEFAULT_AVAILABILITY_LAG_S
+from anical.platform.timezone import system_timezone_name
 
 _GNOME_INTERFACE = "org.gnome.desktop.interface"
-
-
-@functools.cache
-def available_timezones() -> frozenset[str]:
-    return frozenset(zoneinfo.available_timezones())  # scans the zoneinfo directory: cache it
-
-
-@functools.cache
-def system_timezone_name() -> str:
-    """The system's IANA zone name, falling back to UTC if it can't be determined."""
-    candidates = [GLib.TimeZone.new_local().get_identifier(), os.environ.get("TZ", "").lstrip(":")]
-    try:
-        candidates.append(os.path.realpath("/etc/localtime").split("zoneinfo/", 1)[1])
-    except IndexError:
-        pass
-    for name in candidates:
-        if name and name in available_timezones():
-            return name
-    return "UTC"
 
 
 class DisplaySettings(GObject.Object):

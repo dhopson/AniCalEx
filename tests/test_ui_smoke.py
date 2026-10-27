@@ -1,5 +1,7 @@
 """Builds the real widgets against a temporary library. Skipped without a display."""
 
+import json
+import os
 from pathlib import Path
 
 import pytest
@@ -370,6 +372,17 @@ def test_playing_to_the_end_marks_watched(playback, repo, conn, monkeypatch):
     assert source == "playback"
     assert conn.execute("SELECT end_reason FROM playback_session").fetchone()[0] == "eof"
     assert not list((Path(playback._runtime_dir)).glob("session-*"))  # cleaned up
+
+
+@pytest.mark.skipif(not hasattr(os, "openpty"), reason="POSIX only")
+def test_ani_cli_gets_a_terminal_so_it_keeps_our_picker(playback, repo, monkeypatch, tmp_path):
+    # Without a terminal on stdin, ani-cli swaps ANI_CLI_MENU for rofi or dmenu.
+    log = tmp_path / "fake.json"
+    monkeypatch.setenv("FAKE_LOG", str(log))
+    monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof"}')
+    _, episode = first_episode(repo)
+    play_and_wait(playback, episode.id)
+    assert json.loads(log.read_text())["stdin_is_terminal"] is True
 
 
 def test_stopping_early_does_not_mark_watched(playback, repo, monkeypatch):

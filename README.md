@@ -117,6 +117,7 @@ anical/
   providers/        MyAnimeList and AniList API clients with response validation
   auth/             MAL OAuth (PKCE plain, loopback receiver) and keyring token storage
   sync/             worker-thread fetchers (MAL list, AniList schedules) and cover cache
+  platform/         per-OS paths, login storage, notifications and time zone (Linux, Windows, macOS)
   playback/         ani-cli picker (ANI_CLI_MENU) and mpv progress script, installed at runtime
   data/icons/       app icon (full colour and symbolic)
 packaging/          PKGBUILD, desktop entry, AppStream metadata

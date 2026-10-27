@@ -64,6 +64,7 @@ class _Session:
     directory: Path
     progress_path: Path
     process: Gio.Subprocess
+    terminal: int | None = None
     asked: bool = False
     poll_id: int = 0
     answered: bool = False
@@ -136,7 +137,7 @@ class PlaybackController(GObject.Object):
         if executable is None:
             return "ani-cli wasn’t found. Set its location in Preferences → Playback."
         mapping = self.mapping_for(anime.id, anime.title)
-        directory = None
+        directory = terminal = None
         try:
             if self._helpers is None:
                 self._helpers = install_helpers(self._runtime_dir / "helpers")
@@ -145,12 +146,13 @@ class PlaybackController(GObject.Object):
             launcher = Gio.SubprocessLauncher.new(Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_PIPE)
             for name, value in launch.env.items():
                 launcher.setenv(name, value, True)
+            terminal = _attach_terminal(launcher)
             process = launcher.spawnv(launch.argv)
         except (PlaybackError, OSError) as e:
-            _remove(directory)
+            _remove(directory, terminal)
             return str(e)
         except GLib.Error as e:
-            _remove(directory)
+            _remove(directory, terminal)
             return f"Couldn’t start ani-cli: {e.message}"
 
         self._session = _Session(
@@ -162,6 +164,7 @@ class PlaybackController(GObject.Object):
             directory=directory,
             progress_path=launch.progress_path,
             process=process,
+            terminal=terminal,
         )
         self._session.poll_id = GLib.timeout_add(_PICK_POLL_MS, self._poll_pick, self._session)
         process.communicate_async(None, None, self._on_exit, self._session)
@@ -229,7 +232,7 @@ class PlaybackController(GObject.Object):
             marked = True
         if session.poll_id:
             GLib.source_remove(session.poll_id)
-        _remove(session.directory)
+        _remove(session.directory, session.terminal)
         self._session = None
         self.emit("changed")
         self.emit(
@@ -241,6 +244,19 @@ class PlaybackController(GObject.Object):
         self._repo.set_watch_state([episode_id], WatchState.WATCHED, WatchSource.PLAYBACK)
 
 
-def _remove(directory: Path | None) -> None:
+def _attach_terminal(launcher: Gio.SubprocessLauncher) -> int | None:
+    """Give ani-cli a pseudo-terminal as stdin. Without one, ani-cli replaces
+    ANI_CLI_MENU with rofi or dmenu whenever either is installed. Returns the
+    controlling end, which stays open until playback ends."""
+    if not hasattr(os, "openpty"):
+        return None  # Windows: ani-cli runs in Git Bash, where neither is installed
+    controller, child_end = os.openpty()
+    launcher.take_stdin_fd(child_end)
+    return controller
+
+
+def _remove(directory: Path | None, terminal: int | None = None) -> None:
     if directory is not None:
         shutil.rmtree(directory, ignore_errors=True)
+    if terminal is not None:
+        os.close(terminal)

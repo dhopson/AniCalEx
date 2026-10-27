@@ -9,8 +9,14 @@ description = "Anime library and airing calendar for GNOME, with ani-cli playbac
 readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
-# PyGObject, GTK 4 and libadwaita come from the distribution (see README).
-dependencies = []
+# PyGObject, GTK 4 and libadwaita come from the distribution (see README), or
+# from MSYS2 / Homebrew for the Windows and macOS bundles. Linux needs nothing else.
+dependencies = [
+    "certifi; sys_platform == 'win32' or sys_platform == 'darwin'",  # CA file for frozen builds (D22)
+    "tzdata; sys_platform == 'win32'",  # Windows has no zoneinfo database (D22)
+    "tzlocal; sys_platform == 'win32'",  # Windows zone names to IANA
+    "keyring; sys_platform == 'darwin'",  # Keychain token store (D25)
+]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]

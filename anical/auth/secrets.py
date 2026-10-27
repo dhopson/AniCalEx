@@ -1,4 +1,7 @@
-"""OAuth token storage in the desktop keyring (libsecret / Secret Service)."""
+"""OAuth token storage in the desktop keyring (libsecret / Secret Service), on Linux.
+
+Windows and macOS use the stores in `anical.platform.secrets`.
+"""
 
 from __future__ import annotations
 
@@ -8,11 +11,7 @@ gi.require_version("Secret", "1")
 from gi.repository import GLib, Secret  # noqa: E402
 
 from anical import APP_ID  # noqa: E402
-from anical.auth.mal_oauth import Token, TokenStore  # noqa: E402,F401
-
-
-class TokenStoreError(Exception):
-    pass
+from anical.auth.mal_oauth import Token, TokenStore, TokenStoreError  # noqa: E402,F401
 
 
 def _schema(name: str) -> Secret.Schema:

@@ -52,6 +52,10 @@ class Token:
         return cls(str(data["access_token"]), str(data["refresh_token"]), int(data["expires_at"]))
 
 
+class TokenStoreError(Exception):
+    """The secure store couldn't be read or written."""
+
+
 class TokenStore(Protocol):
     def load(self) -> Token | None: ...
     def save(self, token: Token) -> None: ...
