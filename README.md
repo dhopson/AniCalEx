@@ -200,7 +200,7 @@ PyInstaller can't build for another system, so each build runs on the system it'
 
 GitHub Actions runs the same builds on every push to `main` and every pull request, after linting and testing, with one workflow per system (`.github/workflows/linux.yml`, `macos.yml` and `windows.yml`). It also tests each build with the build tools hidden, and on Windows drives the real ani-cli against a fake site (`packaging/ci/anicli_harness.py`).
 
-**Releasing:** set the version in `anical/__init__.py`, then push a matching tag, for example `git tag v0.2.0 && git push origin v0.2.0`. Each system's workflow adds its downloads to that tag's draft GitHub Release (`packaging/ci/release_upload.sh`), which you check and publish by hand once all three have finished.
+**Releasing:** set the version in `anical/__init__.py`, then push a matching tag, for example `git tag v0.2.0 && git push origin v0.2.0`. The release workflow (`.github/workflows/release.yml`) checks the tag matches the version, runs all three systems' workflows, and only when every one passes makes a draft GitHub Release with all the downloads and `SHA256SUMS.txt` (`packaging/ci/release_draft.sh`). Check the draft and publish it by hand. If any system fails, no release is made.
 
 ## Layout
 

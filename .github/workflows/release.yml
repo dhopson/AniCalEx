@@ -1,0 +1,50 @@
+# Release: for a v* tag, checks the tag matches the app's version, runs the linux,
+# macos and windows workflows (lint, tests, builds, self-tests), and only when all
+# of them pass makes a draft GitHub Release with every download and
+# SHA256SUMS.txt (packaging/ci/release_draft.sh). Publishing it is done by hand.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    name: tag matches version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: packaging/ci/release_draft.sh --check "$GITHUB_REF_NAME"
+
+  linux:
+    needs: [version]
+    uses: ./.github/workflows/linux.yml
+
+  macos:
+    needs: [version]
+    uses: ./.github/workflows/macos.yml
+
+  windows:
+    needs: [version]
+    uses: ./.github/workflows/windows.yml
+
+  release:
+    name: draft release
+    needs: [linux, macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+      - name: Make the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          packaging/ci/release_draft.sh "$GITHUB_REF_NAME"
+          $(find artifacts -type f \( -name '*.pkg.tar.zst' -o -name '*.dmg' -o -name '*-setup.exe' -o -name '*-portable.zip' \) | sort)
