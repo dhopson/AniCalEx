@@ -1,0 +1,170 @@
+# Windows: tests, then MSYS2's GTK frozen with PyInstaller (anical-notify from
+# python.org Python) into an unsigned per-user installer and portable zip. The
+# installed app is self-tested and drives the real ani-cli (Git Bash, scoop)
+# against a fake site. On every push to main and pull request.
+# On a v* tag it then adds its downloads to that tag's draft GitHub Release
+# (packaging/ci/release_upload.sh), which is published by hand. linux.yml,
+# macos.yml and windows.yml are separate so the README can show each
+# system's build status.
+name: windows
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch or pull request replaces a run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+jobs:
+  windows-tests:
+    name: windows (tests)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-python-gobject
+            mingw-w64-ucrt-x86_64-adwaita-icon-theme
+            mingw-w64-ucrt-x86_64-python-pytest
+            mingw-w64-ucrt-x86_64-python-tzlocal
+      - name: pytest
+        shell: msys2 {0}
+        run: python -m pytest -q
+
+  windows:
+    name: windows-x64 (build)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gtk4
+            mingw-w64-ucrt-x86_64-libadwaita
+            mingw-w64-ucrt-x86_64-python-gobject
+            mingw-w64-ucrt-x86_64-pyinstaller
+            mingw-w64-ucrt-x86_64-adwaita-icon-theme
+            mingw-w64-ucrt-x86_64-python-certifi
+            mingw-w64-ucrt-x86_64-python-tzdata
+            mingw-w64-ucrt-x86_64-python-tzlocal
+            mingw-w64-ucrt-x86_64-librsvg
+
+      # python.org Python: anical-notify, the icon, and the CI scripts.
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Icon
+        shell: msys2 {0}
+        run: rsvg-convert -w 256 -h 256 anical/data/icons/hicolor/scalable/apps/io.github.dhopson.AniCal.svg -o icon-256.png
+      - name: Icon (ico)
+        shell: pwsh
+        run: |
+          pip install --quiet pillow
+          python packaging/windows/make-ico.py icon-256.png "$env:RUNNER_TEMP\AniCal.ico"
+
+      - name: Freeze AniCal (MSYS2)
+        shell: msys2 {0}
+        run: |
+          export ANICAL_ICO="$(cygpath -w "$RUNNER_TEMP")\\AniCal.ico"
+          pyinstaller --noconfirm --log-level WARN --distpath dist --workpath build packaging/pyinstaller/anical.spec
+
+      - name: Freeze anical-notify (python.org Python)
+        shell: pwsh
+        run: |
+          pip install --quiet pyinstaller desktop-notifier
+          pyinstaller --noconfirm --log-level WARN --distpath dist-notify --workpath build-notify packaging/windows/anical-notify.spec
+          Copy-Item -Recurse dist-notify/anical-notify dist/AniCal/anical-notify
+
+      - name: Installer and portable zip
+        shell: pwsh
+        run: |
+          $version = (Select-String -Path anical/__init__.py -Pattern '__version__ = "(.+)"').Matches[0].Groups[1].Value
+          "ANICAL_VERSION=$version" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+          New-Item -ItemType Directory -Force out | Out-Null
+          Compress-Archive -Path dist/AniCal -DestinationPath "out/AniCal-$version-windows-x64-portable.zip"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup --no-progress -y | Out-Null }
+          & $iscc /Q "/DAppVersion=$version" "/DIconFile=$env:RUNNER_TEMP\AniCal.ico" packaging\windows\anical.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Get-ChildItem out | Format-Table Name, Length
+
+      - name: Install it, the way a user would
+        shell: pwsh
+        run: |
+          $setup = "out/AniCal-$env:ANICAL_VERSION-windows-x64-setup.exe"
+          Start-Process -Wait -FilePath $setup -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=out\install.log"
+          Get-ChildItem "$env:LOCALAPPDATA\Programs\AniCal" | Format-Table Name
+          Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\AniCal.lnk"
+
+      # The user's documented setup: Git for Windows (preinstalled) plus scoop's ani-cli and mpv.
+      - name: Install scoop, ani-cli, mpv, ffmpeg
+        shell: pwsh
+        run: |
+          iex "& {$(irm get.scoop.sh)} -RunAsAdmin"
+          $env:PATH = "$HOME\scoop\shims;$env:PATH"
+          scoop bucket add extras
+          scoop install ani-cli mpv ffmpeg
+          "$HOME\scoop\shims" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      # Plain PowerShell: MSYS2 isn't on PATH, so the installed app has to stand on its own.
+      - name: Self-test the installed app
+        shell: pwsh
+        env:
+          ANICAL_SELFTEST_ANICLI: "1"
+        run: python packaging/ci/run_selftest.py out/selftest -- "$env:LOCALAPPDATA\Programs\AniCal\AniCal.exe"
+
+      - name: Setup wizard screenshots
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          foreach ($step in 1..4) {
+            $env:ANICAL_SELFTEST_WIZARD = "$step"
+            python packaging/ci/run_selftest.py "out/wizard-$step" -- "$env:LOCALAPPDATA\Programs\AniCal\AniCal.exe"
+            if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          }
+
+      - name: ani-cli through the installed helpers
+        shell: pwsh
+        run: python packaging/ci/anicli_harness.py --out out/harness --work "$env:RUNNER_TEMP\AniCal harness work" --helpers "$env:LOCALAPPDATA\Programs\AniCal"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: anical-windows-x64
+          path: out/
+
+  release:
+    name: add to release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows-tests, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+      - name: Add the downloads to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: packaging/ci/release_upload.sh "$GITHUB_REF_NAME" $(find artifacts \( -name '*-setup.exe' -o -name '*-portable.zip' \) -type f)

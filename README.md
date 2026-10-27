@@ -187,9 +187,9 @@ PyInstaller can't build for another system, so each build runs on the system it'
 
 `ANICAL_SELFTEST=report.json` makes any build check itself, write a report and quit.
 
-GitHub Actions (`.github/workflows/build.yml`) runs the same builds on every push to `main` and every pull request, after linting and testing on all three systems. It also tests each build with the build tools hidden, and on Windows drives the real ani-cli against a fake site (`packaging/ci/anicli_harness.py`).
+GitHub Actions runs the same builds on every push to `main` and every pull request, after linting and testing, with one workflow per system (`.github/workflows/linux.yml`, `macos.yml` and `windows.yml`). It also tests each build with the build tools hidden, and on Windows drives the real ani-cli against a fake site (`packaging/ci/anicli_harness.py`).
 
-**Releasing:** set the version in `anical/__init__.py`, then push a matching tag, for example `git tag v0.2.0 && git push origin v0.2.0`. The workflow builds every download and collects them into a draft GitHub Release, which you check and publish by hand.
+**Releasing:** set the version in `anical/__init__.py`, then push a matching tag, for example `git tag v0.2.0 && git push origin v0.2.0`. Each system's workflow adds its downloads to that tag's draft GitHub Release (`packaging/ci/release_upload.sh`), which you check and publish by hand once all three have finished.
 
 ## Layout
 
@@ -225,4 +225,8 @@ MIT. See `LICENSE`. AniCal runs ani-cli as a separate program and includes none 
 
 ---
 
-[![Build status](https://github.com/dhopson/AniCalEx/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/dhopson/AniCalEx/actions/workflows/build.yml)
+**Build status** (`main`):
+
+| Linux | macOS | Windows |
+|:-:|:-:|:-:|
+| [![Linux build](https://github.com/dhopson/AniCalEx/actions/workflows/linux.yml/badge.svg?branch=main)](https://github.com/dhopson/AniCalEx/actions/workflows/linux.yml) | [![macOS build](https://github.com/dhopson/AniCalEx/actions/workflows/macos.yml/badge.svg?branch=main)](https://github.com/dhopson/AniCalEx/actions/workflows/macos.yml) | [![Windows build](https://github.com/dhopson/AniCalEx/actions/workflows/windows.yml/badge.svg?branch=main)](https://github.com/dhopson/AniCalEx/actions/workflows/windows.yml) |

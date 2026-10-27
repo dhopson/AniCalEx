@@ -1,0 +1,127 @@
+# macOS: tests, then an ad-hoc signed .dmg per architecture from Homebrew's GTK,
+# each self-tested with Homebrew hidden, on every push to main and pull request.
+# On a v* tag it then adds its downloads to that tag's draft GitHub Release
+# (packaging/ci/release_upload.sh), which is published by hand. linux.yml,
+# macos.yml and windows.yml are separate so the README can show each
+# system's build status.
+name: macos
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same branch or pull request replaces a run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+jobs:
+  macos-tests:
+    name: macos (tests)
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install GTK stack
+        run: brew install gtk4 libadwaita pygobject3 adwaita-icon-theme
+      - name: Virtualenv
+        run: |
+          for py in "$(brew --prefix)"/opt/python@3.*/bin/python3.[0-9]*; do
+            if "$py" -c "import gi" 2>/dev/null; then PY="$py"; fi
+          done
+          "$PY" -m venv --system-site-packages venv
+          venv/bin/pip install --quiet -e '.[dev]' --config-settings editable_mode=compat
+      - name: pytest
+        run: venv/bin/python -m pytest -q
+
+  macos:
+    name: macos-${{ matrix.arch }} (build)
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { arch: arm64, runner: macos-15 }
+          - { arch: x86_64, runner: macos-15-intel }
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install GTK stack (Homebrew)
+        run: brew install gtk4 libadwaita pygobject3 adwaita-icon-theme librsvg
+
+      - name: Virtualenv with PyInstaller
+        run: |
+          for py in "$(brew --prefix)"/opt/python@3.*/bin/python3.[0-9]*; do
+            if "$py" -c "import gi" 2>/dev/null; then PY="$py"; fi
+          done
+          "$PY" -m venv --system-site-packages venv
+          venv/bin/pip install --quiet pyinstaller tzdata .
+
+      - name: Icon
+        run: packaging/macos/make-icns.sh "$RUNNER_TEMP/AniCal.icns"
+
+      - name: Freeze and sign ad hoc
+        env:
+          ANICAL_ICNS: ${{ runner.temp }}/AniCal.icns
+        run: |
+          venv/bin/pyinstaller --noconfirm --log-level WARN --distpath dist --workpath build packaging/pyinstaller/anical.spec
+          codesign --force --deep --sign - dist/AniCal.app
+          codesign --verify --verbose dist/AniCal.app
+
+      - name: Disk image
+        run: |
+          version=$(venv/bin/python -c "import anical; print(anical.__version__)")
+          mkdir -p out dmg
+          ditto dist/AniCal.app dmg/AniCal.app
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname AniCal -srcfolder dmg -ov -format UDZO "out/AniCal-$version-macos-${{ matrix.arch }}.dmg"
+
+      # Hide Homebrew so the bundle can't fall back to its libraries or data (as in S1).
+      - name: Self-test, relocated with Homebrew hidden
+        run: |
+          ditto dist/AniCal.app "$RUNNER_TEMP/AniCal.app"
+          if [ "${{ matrix.arch }}" = arm64 ]; then
+            sudo mv /opt/homebrew /opt/homebrew-hidden
+          else
+            for dir in Cellar opt etc; do sudo mv "/usr/local/$dir" "/usr/local/$dir-hidden"; done
+          fi
+          /usr/bin/python3 packaging/ci/run_selftest.py out/selftest -- "$RUNNER_TEMP/AniCal.app/Contents/MacOS/AniCal"
+
+      # A screenshot of each setup wizard step, for review only.
+      - name: Setup wizard screenshots
+        continue-on-error: true
+        run: |
+          for step in 1 2 3 4; do
+            ANICAL_SELFTEST_WIZARD=$step /usr/bin/python3 packaging/ci/run_selftest.py "out/wizard-$step" -- "$RUNNER_TEMP/AniCal.app/Contents/MacOS/AniCal"
+          done
+          ANICAL_SELFTEST_DIALOG=preferences /usr/bin/python3 packaging/ci/run_selftest.py out/preferences -- "$RUNNER_TEMP/AniCal.app/Contents/MacOS/AniCal"
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: anical-macos-${{ matrix.arch }}
+          path: out/
+
+  release:
+    name: add to release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos-tests, macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+      - name: Add the downloads to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: packaging/ci/release_upload.sh "$GITHUB_REF_NAME" $(find artifacts -name '*.dmg' -type f)

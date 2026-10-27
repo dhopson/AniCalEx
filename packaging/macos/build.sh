@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds AniCal for macOS on this Mac: AniCal.app (signed ad hoc) and a .dmg,
 # then starts a copy of the app in self-test mode. The same steps as the macos
-# job in .github/workflows/build.yml. Run from anywhere:
+# build job in .github/workflows/macos.yml. Run from anywhere:
 #
 #   packaging/macos/build.sh [--arch arm64|x86_64] [--skip-selftest] [--screenshots]
 #

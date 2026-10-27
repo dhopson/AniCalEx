@@ -1,7 +1,7 @@
 <#
 Builds AniCal for Windows x64 on this PC: the AniCal folder, a portable zip and
 the per-user installer, then starts the built app in self-test mode. The same
-steps as the windows job in .github/workflows/build.yml. From any PowerShell:
+steps as the windows build job in .github/workflows/windows.yml. From any PowerShell:
 
   powershell -ExecutionPolicy Bypass -File packaging\windows\build.ps1 [-SkipSelfTest] [-Screenshots] [-Msys2 C:\msys64]
 
