@@ -67,6 +67,14 @@ This installs the `anical` command, a desktop entry, the icon and AppStream meta
 
 Builds are signed ad hoc, so after an update macOS may ask once whether AniCal may use its Keychain item.
 
+## Install (Windows)
+
+1. Download `AniCal-<version>-windows-x64-setup.exe` and run it. It installs for your user only, so no administrator rights are needed. There's also a portable `.zip` that runs from any folder.
+2. AniCal isn't code-signed, so SmartScreen may warn. Choose **More info → Run anyway**.
+3. For playback, follow [ani-cli's Windows instructions](https://github.com/pystardust/ani-cli#windows): install Git for Windows and scoop, then run `scoop bucket add extras` and `scoop install ani-cli mpv`. You don't need to use the Windows Terminal profile; AniCal starts ani-cli itself. Preferences → Playback shows where AniCal found ani-cli, mpv and Git Bash, and you can set each location by hand.
+
+Notifications appear as Windows toasts, with a **Play** button. Your library stays in `%LOCALAPPDATA%\AniCal` when you uninstall.
+
 ## Requirements
 
 - Python ≥ 3.12
