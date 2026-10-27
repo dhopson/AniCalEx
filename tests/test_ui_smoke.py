@@ -655,6 +655,7 @@ def test_required_programs_add_git_bash_on_windows(playback, monkeypatch):
     import anical.ui.playback_controller as playback_controller
     from anical.platform import System
 
+    monkeypatch.setattr(playback_controller, "current", lambda: System.LINUX)  # whatever system runs the tests
     assert [p.name for p in playback.required_programs()] == ["ani-cli", "mpv"]
     monkeypatch.setattr(playback_controller, "current", lambda: System.WINDOWS)
     programs = playback.required_programs()
