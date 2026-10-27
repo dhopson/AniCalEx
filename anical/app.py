@@ -201,6 +201,7 @@ class AniCalApplication(Adw.Application):
         )
         wizard.present(window)
         wizard.go_to(step)
+        self.selftest_wizard = wizard  # for the self-test's dialog diagnostics
 
     def _on_preferences(self, *_):
         if self._sync is not None:

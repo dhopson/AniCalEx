@@ -197,7 +197,16 @@ def _dialog_state(window: Gtk.Window):
     """Diagnostics for screenshot runs: is the dialog hosted inside the window and drawn?"""
     dialog = window.get_visible_dialog() if hasattr(window, "get_visible_dialog") else None
     if dialog is None:
-        return False, "the window shows no dialog"
+        toplevels = [
+            f"{type(w).__name__}(visible={w.get_visible()} mapped={w.get_mapped()} "
+            f"{w.get_width()}x{w.get_height()} title={w.get_title()!r})"
+            for w in Gtk.Window.list_toplevels()
+        ]
+        wizard = getattr(window.get_application(), "selftest_wizard", None)
+        where = (
+            f"wizard root={type(wizard.get_root()).__name__} mapped={wizard.get_mapped()}" if wizard else "no wizard made"
+        )
+        return False, f"the window shows no dialog; {where}; toplevels: {toplevels}"
     root = dialog.get_root()
     return dialog.get_mapped(), (
         f"{type(dialog).__name__} mapped={dialog.get_mapped()} size={dialog.get_width()}x{dialog.get_height()} "
