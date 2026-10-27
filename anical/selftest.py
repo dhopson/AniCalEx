@@ -171,6 +171,8 @@ def run(window: Gtk.Window, paths, send) -> dict:
     check("playback_helpers", True, helpers)
     check("token_store", frozen and system is not System.LINUX, token_store)
     check("setup_wizard_art", True, setup_art)
+    if os.environ.get("ANICAL_SELFTEST_WIZARD") or os.environ.get("ANICAL_SELFTEST_DIALOG"):
+        check("dialog_shown", False, lambda: _dialog_state(window))
     check("notifications", False, notifications)
     check("playback_programs", False, programs)
     check("ani_cli_runs", bool(os.environ.get("ANICAL_SELFTEST_ANICLI")), ani_cli_runs)
@@ -191,6 +193,18 @@ def run(window: Gtk.Window, paths, send) -> dict:
     }
 
 
+def _dialog_state(window: Gtk.Window):
+    """Diagnostics for screenshot runs: is the dialog hosted inside the window and drawn?"""
+    dialog = window.get_visible_dialog() if hasattr(window, "get_visible_dialog") else None
+    if dialog is None:
+        return False, "the window shows no dialog"
+    root = dialog.get_root()
+    return dialog.get_mapped(), (
+        f"{type(dialog).__name__} mapped={dialog.get_mapped()} size={dialog.get_width()}x{dialog.get_height()} "
+        f"root={type(root).__name__} same_window={root is window}"
+    )
+
+
 def schedule(app, window: Gtk.Window, paths, send, report_path: str) -> None:
     """Runs the checks once the window has been up for a moment, then quits.
     $ANICAL_SELFTEST_HOLD_S keeps the window open longer for a screenshot."""
@@ -206,5 +220,6 @@ def schedule(app, window: Gtk.Window, paths, send, report_path: str) -> None:
 
     # The checks block the main loop (14 s on macOS CI), so when a wizard step is
     # being screenshotted, let it appear and draw first.
-    delay_ms = 5000 if os.environ.get("ANICAL_SELFTEST_WIZARD") else 1500
+    showing_dialog = os.environ.get("ANICAL_SELFTEST_WIZARD") or os.environ.get("ANICAL_SELFTEST_DIALOG")
+    delay_ms = 5000 if showing_dialog else 1500
     GLib.timeout_add(delay_ms, finish)

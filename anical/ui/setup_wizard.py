@@ -336,13 +336,12 @@ class SetupWizard(Adw.Dialog):
         for program in self._programs:
             rows.append(program.row)
         box.append(rows)
-        box.append(
-            _label(
-                "Install opens a terminal window that explains each step and asks before installing anything. "
-                "This page checks again by itself.",
-                "dim-label",
-            )
+        self._install_note = _label(
+            "Install opens a terminal window that explains each step and asks before installing anything. "
+            "This page checks again by itself.",
+            "dim-label",
         )
+        box.append(self._install_note)
         box.append(self._install_status)
         box.append(
             _label(
@@ -366,6 +365,7 @@ class SetupWizard(Adw.Dialog):
             program.refresh()
         all_found = all(p.found for p in self._programs)
         self._set_mascot("playback", "done" if all_found else "playback")
+        self._install_note.set_visible(not all_found)
         if all_found:
             self._install_status.set_label("")
         self._update_bubbles()

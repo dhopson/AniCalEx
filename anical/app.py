@@ -169,6 +169,8 @@ class AniCalApplication(Adw.Application):
             if step := os.environ.get("ANICAL_SELFTEST_WIZARD"):  # CI screenshots of a wizard step
                 # After the window is up, as on a first run; presented earlier, macOS didn't show it.
                 GLib.timeout_add(300, lambda: self._show_setup(window, int(step)) and False)
+            elif os.environ.get("ANICAL_SELFTEST_DIALOG") == "preferences":  # does any dialog show?
+                GLib.timeout_add(300, lambda: self.activate_action("preferences", None) and False)
         elif not settings.get(SETUP_SEEN) and not self._sync.config.client_id:
             GLib.idle_add(lambda: self._show_setup() and False)  # first run: after the window is up
         self._sync.connect("library-changed", lambda *_: self._notifier.check())

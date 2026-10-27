@@ -121,6 +121,7 @@ jobs:
           for step in 1 2 3 4; do
             ANICAL_SELFTEST_WIZARD=$step /usr/bin/python3 packaging/ci/run_selftest.py "out/wizard-$step" -- "$RUNNER_TEMP/AniCal.app/Contents/MacOS/AniCal"
           done
+          ANICAL_SELFTEST_DIALOG=preferences /usr/bin/python3 packaging/ci/run_selftest.py out/preferences -- "$RUNNER_TEMP/AniCal.app/Contents/MacOS/AniCal"
 
       - uses: actions/upload-artifact@v7
         if: always()
