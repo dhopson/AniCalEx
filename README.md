@@ -1,6 +1,6 @@
 # AniCal
 
-AniCal is a GNOME desktop app for tracking anime. It keeps a local library of shows and which episodes you've watched, imports your MyAnimeList list, shows when new episodes air in a calendar, and plays episodes through your existing [`ani-cli`](https://github.com/pystardust/ani-cli) installation.
+AniCal is a desktop app for Linux (GNOME), macOS and Windows for tracking anime. It keeps a local library of shows and which episodes you've watched, imports your MyAnimeList list, shows when new episodes air in a calendar, and plays episodes through your existing [`ani-cli`](https://github.com/pystardust/ani-cli) installation.
 
 **Status: 0.1.0, all planned phases complete.**
 
@@ -45,7 +45,7 @@ AniCal is a GNOME desktop app for tracking anime. It keeps a local library of sh
 2. In AniCal, open **Preferences** (<kbd>Ctrl</kbd>+<kbd>,</kbd>) and paste the client ID into **Client ID**.
 3. Either click **Log In**, or enter a public list's username.
 
-The login token is stored in your desktop keyring (Secret Service), never in a file. Requests to MyAnimeList carry only the token or the client ID, plus your username when you import a public list.
+The login token is stored in your desktop keyring (Secret Service) on Linux and in the Keychain on macOS. On Windows it goes in a file encrypted for your Windows user (DPAPI); Credential Manager can't hold a login this long. Requests to MyAnimeList carry only the token or the client ID, plus your username when you import a public list.
 
 AniList requests contain only the MAL and AniList IDs of shows in your library, with no account and no watch history. They are paced to stay inside AniList's rate limit.
 
@@ -58,11 +58,20 @@ makepkg -si      # builds from this checkout; pulls in python-build and python-i
 
 This installs the `anical` command, a desktop entry, the icon and AppStream metadata, so AniCal appears in GNOME's app grid. To remove it: `sudo pacman -R anical`. Your library stays in `~/.local/share/anical/`.
 
+## Install (macOS)
+
+1. Download `AniCal-<version>-macos-arm64.dmg` (Apple Silicon) or `-macos-x86_64.dmg` (Intel), open it, and drag AniCal to Applications.
+2. AniCal isn't notarized by Apple, so the first time, **right-click AniCal → Open → Open**. If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/AniCal.app` in Terminal and try again.
+3. For playback: `brew install ani-cli mpv` (see [ani-cli's install notes](https://github.com/pystardust/ani-cli#macos)). AniCal finds them in Homebrew's folders; Preferences → Playback shows where.
+4. Allow notifications when asked, so you hear about new episodes.
+
+Builds are signed ad hoc, so after an update macOS may ask once whether AniCal may use its Keychain item.
+
 ## Requirements
 
 - Python ≥ 3.12
 - For playback: [`ani-cli`](https://github.com/pystardust/ani-cli) (tested with 5.1.0 and 5.1.6) and mpv. On Windows also Git for Windows; there, install ani-cli and mpv with scoop. On macOS install them with Homebrew.
-- GTK 4, libadwaita ≥ 1.7, and PyGObject, all from your distribution:
+- GTK 4, libadwaita ≥ 1.8, and PyGObject, all from your distribution (the macOS and Windows builds include them):
   - Arch / CachyOS: `pacman -S python-gobject gtk4 libadwaita`
   - Fedora: `dnf install python3-gobject gtk4 libadwaita`
   - Debian / Ubuntu: `apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1`
@@ -71,7 +80,7 @@ This installs the `anical` command, a desktop entry, the icon and AppStream meta
 
 ```sh
 python3 -m venv --system-site-packages .venv   # system site packages expose the distro's `gi`
-.venv/bin/pip install -e '.[dev]'
+.venv/bin/pip install -e '.[dev]' --config-settings editable_mode=compat   # beats an installed AniCal
 .venv/bin/anical                               # or: .venv/bin/python -m anical
 .venv/bin/python -m pytest
 ```
@@ -82,6 +91,8 @@ UI smoke tests (`tests/test_ui_smoke.py`) build the real widgets and are skipped
 
 ## Data
 
+On Linux:
+
 | What | Where |
 |---|---|
 | Library database (SQLite) | `$XDG_DATA_HOME/anical/anical.db` (usually `~/.local/share/anical/`) |
@@ -89,6 +100,8 @@ UI smoke tests (`tests/test_ui_smoke.py`) build the real widgets and are skipped
 | Automatic weekly backups (last 4) | `~/.local/share/anical/backups/` |
 | Cover images (re-downloadable) | `$XDG_CACHE_HOME/anical/covers/` |
 | MyAnimeList login token | desktop keyring, item "AniCal MyAnimeList login" |
+
+On macOS the library and backups are in `~/Library/Application Support/AniCal/` and covers in `~/Library/Caches/AniCal/`. On Windows everything is in `%LOCALAPPDATA%\AniCal\`, including the encrypted login (`mal-login.bin`). Preferences → Data → Data Folder opens the folder on any system, and a backup made on one system can be restored on another.
 
 Each schema migration runs in its own transaction. If the database already holds data, it is copied before any upgrade. If the file is unreadable, or was written by a newer version of AniCal, the app shows an error and leaves the file untouched.
 
@@ -130,7 +143,7 @@ tests/              pytest
 
 MIT. See `LICENSE`. AniCal runs ani-cli as a separate program and includes none of its code.
 
-Keyboard shortcuts (the full list is under <kbd>Ctrl</kbd>+<kbd>?</kbd>):
+Keyboard shortcuts (the full list is under <kbd>Ctrl</kbd>+<kbd>?</kbd>; on macOS use <kbd>⌘</kbd> instead of <kbd>Ctrl</kbd>):
 
 | Shortcut | Action |
 |---|---|
