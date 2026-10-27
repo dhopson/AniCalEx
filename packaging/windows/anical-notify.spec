@@ -1,4 +1,4 @@
-# PyInstaller spec for anical-notify, AniCal's Windows toast helper (D24).
+# PyInstaller spec for anical-notify, AniCal's Windows toast helper.
 # Built with python.org Python, not MSYS2's: desktop-notifier's WinRT modules
 # only load there. Run from the repository root:
 #   pyinstaller --noconfirm --distpath dist-notify --workpath build-notify packaging/windows/anical-notify.spec

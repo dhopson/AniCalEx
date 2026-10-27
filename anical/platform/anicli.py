@@ -1,4 +1,4 @@
-"""Finding ani-cli, mpv and (on Windows) Git Bash (D23).
+"""Finding ani-cli, mpv and (on Windows) Git Bash.
 
 A setting always wins. Otherwise AniCal looks where each OS's package
 manager puts them, because apps started from the Dock or the Start menu

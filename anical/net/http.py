@@ -67,7 +67,7 @@ class HttpClient(Protocol):
 def tls_context() -> ssl.SSLContext:
     """The system's CA certificates, except in a frozen build (Windows and
     macOS bundles), where the system's OpenSSL looks for them in the build
-    machine's paths. Those use the bundled certifi file instead (D22)."""
+    machine's paths. Those use the bundled certifi file instead."""
     if getattr(sys, "frozen", False):
         import certifi
 

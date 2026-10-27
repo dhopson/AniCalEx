@@ -1,6 +1,6 @@
 """Playback through ani-cli: launch command, outcome rules, history parsing.
 
-How a launch works (verified against ani-cli 5.1.0 and 5.1.6, D14 and D23):
+How a launch works (verified against ani-cli 5.1.0 and 5.1.6):
 - `ani-cli --no-detach --exit-after-play -e N QUERY` searches, plays episode
   N in the foreground, and exits with the player's exit code. On Windows it
   runs as `bash.exe ani-cli ...` (Git for Windows).

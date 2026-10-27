@@ -1,4 +1,4 @@
-"""Where the MyAnimeList login is kept on each operating system (D25).
+"""Where the MyAnimeList login is kept on each operating system.
 
 - Linux: the desktop keyring through libsecret (`anical.auth.secrets`).
 - Windows: a file encrypted with DPAPI for the current Windows user.

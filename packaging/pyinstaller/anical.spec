@@ -1,6 +1,6 @@
 # PyInstaller spec for the Windows and macOS builds: AniCal plus its two
-# playback helpers, anical-pick and anical-mpv, sharing one runtime folder
-# (D23). Run from the repository root:
+# playback helpers, anical-pick and anical-mpv, sharing one runtime folder.
+# Run from the repository root:
 #   pyinstaller --noconfirm --distpath dist --workpath build packaging/pyinstaller/anical.spec
 # On macOS, set ANICAL_ICNS to the .icns file made by packaging/macos/make-icns.sh.
 import os
@@ -53,7 +53,7 @@ shim = Analysis([os.path.join(helper_dir, "anical-mpv.py")], excludes=["tkinter"
 icon = os.environ.get("ANICAL_ICNS") if MACOS else os.environ.get("ANICAL_ICO")
 app_exe = EXE(PYZ(app.pure), app.scripts, [], exclude_binaries=True, name="AniCal", console=False, icon=icon)
 # Console programs: ani-cli talks to them over pipes. AniCal starts ani-cli
-# without a console window, so none appears (D23).
+# without a console window, so none appears.
 pick_exe = EXE(PYZ(pick.pure), pick.scripts, [], exclude_binaries=True, name="anical-pick", console=True)
 shim_exe = EXE(PYZ(shim.pure), shim.scripts, [], exclude_binaries=True, name="anical-mpv", console=True)
 coll = COLLECT(

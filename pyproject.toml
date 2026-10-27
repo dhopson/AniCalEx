@@ -12,11 +12,11 @@ license = "MIT"
 # PyGObject, GTK 4 and libadwaita come from the distribution (see README), or
 # from MSYS2 / Homebrew for the Windows and macOS bundles. Linux needs nothing else.
 dependencies = [
-    "certifi; sys_platform == 'win32' or sys_platform == 'darwin'",  # CA file for frozen builds (D22)
-    "tzdata; sys_platform == 'win32'",  # Windows has no zoneinfo database (D22)
+    "certifi; sys_platform == 'win32' or sys_platform == 'darwin'",  # CA file for frozen builds
+    "tzdata; sys_platform == 'win32'",  # Windows has no zoneinfo database
     "tzlocal; sys_platform == 'win32'",  # Windows zone names to IANA
-    "keyring; sys_platform == 'darwin'",  # Keychain token store (D25)
-    "desktop-notifier; sys_platform == 'darwin'",  # notifications with buttons (D24)
+    "keyring; sys_platform == 'darwin'",  # Keychain token store
+    "desktop-notifier; sys_platform == 'darwin'",  # notifications with buttons
 ]
 
 [project.optional-dependencies]

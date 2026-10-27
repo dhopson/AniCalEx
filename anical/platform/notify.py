@@ -1,4 +1,4 @@
-"""Desktop notifications, independent of how each OS shows them (D24).
+"""Desktop notifications, independent of how each OS shows them.
 
 A `Notice` says what to show and which application action to activate when
 it, or one of its buttons, is clicked. A sender turns it into the OS's
@@ -72,7 +72,7 @@ def _activate(app: Gio.Application, action: str, target: int | None) -> None:
 
 
 class DesktopNotifierSender:
-    """macOS: desktop-notifier on an asyncio loop in a worker thread (D24). GTK's
+    """macOS: desktop-notifier on an asyncio loop in a worker thread. GTK's
     main loop runs the main CFRunLoop, which delivers clicks; they are passed
     back to the main thread as application actions. Permission is asked for
     with the first notification."""
@@ -112,7 +112,7 @@ class DesktopNotifierSender:
 
 
 class HelperNotifierSender:
-    """Windows: toasts through the anical-notify helper (D24), which runs
+    """Windows: toasts through the anical-notify helper, which runs
     beside AniCal and reports clicks back as JSON lines."""
 
     backend = "anical-notify"

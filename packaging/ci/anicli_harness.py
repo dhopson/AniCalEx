@@ -1,4 +1,4 @@
-"""Drive the real ani-cli the way AniCal does (D23, D26), against a fake site.
+"""Drive the real ani-cli the way AniCal does, against a fake site.
 
 Started as spikes S2 and S3; CI runs it against each build's own helpers.
 

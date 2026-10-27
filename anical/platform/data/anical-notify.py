@@ -1,4 +1,4 @@
-"""anical-notify: Windows toasts with buttons for AniCal (D24).
+"""anical-notify: Windows toasts with buttons for AniCal.
 
 AniCal's GTK build runs on MSYS2's Python, which can't load the WinRT
 extension modules that toasts need, so this helper is built separately with

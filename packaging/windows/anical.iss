@@ -1,6 +1,6 @@
 ; Inno Setup script for AniCal on Windows. Installs for the current user only
 ; (no administrator rights), adds a Start menu shortcut carrying the
-; AppUserModelID that anical-notify's toasts use (D24), and leaves the library
+; AppUserModelID that anical-notify's toasts use, and leaves the library
 ; in %LOCALAPPDATA%\AniCal alone on uninstall.
 ; Build from the repository root, after dist\AniCal is complete:
 ;   iscc /DAppVersion=0.1.0 /DIconFile=AniCal.ico packaging\windows\anical.iss

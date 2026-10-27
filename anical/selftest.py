@@ -23,7 +23,7 @@ from gi.repository import Adw, Gio, GLib, Gtk
 from anical import APP_ID, __version__
 from anical.platform import System, current
 
-REQUIRED_ADW = (1, 8)  # Adw.ShortcutsDialog (D22)
+REQUIRED_ADW = (1, 8)  # Adw.ShortcutsDialog
 ICONS = (
     APP_ID,
     "dialog-information-symbolic",

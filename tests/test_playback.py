@@ -83,7 +83,7 @@ def test_launch_uses_an_argument_vector(tmp_path, helpers):
     launch = launch_for(tmp_path, helpers, mapping, episode=3, config=PlaybackConfig(quality="720p", player="/opt/mpv"))
     assert launch.argv == [FAKE_ANI_CLI, "--no-detach", "--exit-after-play", "--dub", "-q", "720p", "-e", "15", title]
     assert launch.env["ANICAL_PICK_TITLE"] == "Chosen"
-    # Helpers are called by name from a folder put first on PATH (D23).
+    # Helpers are called by name from a folder put first on PATH.
     assert (launch.env["ANI_CLI_MENU"], launch.env["ANI_CLI_PLAYER"]) == ("anical-pick", "anical-mpv")
     assert launch.env["PATH"].split(os.pathsep)[0] == str(helpers[0])
     assert launch.env["ANICAL_MPV"] == "/opt/mpv"
@@ -226,7 +226,7 @@ def test_picker_quits_ani_cli_menu_after_non_mpv_playback(helpers):
 
 
 def test_picker_reads_and_answers_utf8(tmp_path, helpers):
-    # The picker forces UTF-8 itself; Windows would otherwise use the console code page (D23).
+    # The picker forces UTF-8 itself; Windows would otherwise use the console code page.
     env = {**os.environ, "ANICAL_PICK_TITLE": "Spike Show: Kōhen"}
     reply = subprocess.run(
         [str(helpers[0] / "anical-pick"), "Select anime: "],

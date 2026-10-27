@@ -134,7 +134,7 @@ def test_keychain_errors_become_token_store_errors():
         KeychainTokenStore(Broken()).load()
 
 
-# Finding ani-cli, mpv and Git Bash (D23)
+# Finding ani-cli, mpv and Git Bash
 
 from anical.platform.anicli import find_ani_cli, find_bash, find_player
 
@@ -185,7 +185,7 @@ def test_git_bash_search_order(tmp_path):
     assert find_bash(str(tmp_path / "nope.exe"), tmp_path, env, list) is None
 
 
-# Notifications through a helper program (Windows route, D24)
+# Notifications through a helper program (Windows route)
 
 FAKE_NOTIFY = """
 import json, sys

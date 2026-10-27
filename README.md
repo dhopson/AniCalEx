@@ -187,7 +187,9 @@ PyInstaller can't build for another system, so each build runs on the system it'
 
 `ANICAL_SELFTEST=report.json` makes any build check itself, write a report and quit.
 
-GitHub Actions can run the same builds (`.github/workflows/build.yml`). It also tests each build with the build tools hidden, drives the real ani-cli on Windows against a fake site (`packaging/ci/anicli_harness.py`), and, for a `v*` tag, collects every download into a draft GitHub Release to publish by hand.
+GitHub Actions (`.github/workflows/build.yml`) runs the same builds on every push to `main` and every pull request, after linting and testing on all three systems. It also tests each build with the build tools hidden, and on Windows drives the real ani-cli against a fake site (`packaging/ci/anicli_harness.py`).
+
+**Releasing:** set the version in `anical/__init__.py`, then push a matching tag, for example `git tag v0.2.0 && git push origin v0.2.0`. The workflow builds every download and collects them into a draft GitHub Release, which you check and publish by hand.
 
 ## Layout
 
@@ -220,3 +222,7 @@ tests/              pytest
 ## License
 
 MIT. See `LICENSE`. AniCal runs ani-cli as a separate program and includes none of its code.
+
+---
+
+[![Build status](https://github.com/dhopson/AniCalEx/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/dhopson/AniCalEx/actions/workflows/build.yml)

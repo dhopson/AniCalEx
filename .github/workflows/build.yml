@@ -1,19 +1,29 @@
-# Tests and builds for all three systems. On a v* tag, the last job collects
-# the Arch package, the macOS disk images and the Windows installer and zip
-# into one draft GitHub Release; publishing it stays a manual step.
+# Tests and builds for all three systems, on every push to main and every pull
+# request. To release: push a v* tag (matching anical.__version__); the last
+# job collects the Arch package, the macOS disk images and the Windows
+# installer and zip into one draft GitHub Release, which is published by hand.
 #
 # - Linux: Arch container (libadwaita >= 1.8, unlike Ubuntu), tests under Xvfb, makepkg.
-# - macOS: Homebrew's GTK, one build per architecture (P5), ad-hoc signed .dmg (P4).
-# - Windows: MSYS2's GTK, anical-notify from python.org Python (D24), unsigned
+# - macOS: Homebrew's GTK, one build per architecture, ad-hoc signed .dmg.
+# - Windows: MSYS2's GTK, anical-notify from python.org Python, unsigned
 #   per-user installer and portable zip, then the installed app is self-tested
 #   and driven through the real ani-cli (Git Bash, scoop) against a fake site.
 name: build
 
 on:
   push:
-    branches: [main, "port/**", "feature/**"]
+    branches: [main]
     tags: ["v*"]
+  pull_request:
   workflow_dispatch:
+
+# A newer push to the same branch or pull request replaces a run still in progress.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
 
 jobs:
   linux:
@@ -26,8 +36,15 @@ jobs:
         run: >-
           pacman -Syu --noconfirm --needed git python python-gobject gtk4 libadwaita libsecret
           adwaita-icon-theme python-pytest xorg-server-xvfb base-devel
-          python-build python-installer python-setuptools python-wheel
+          python-build python-installer python-setuptools python-wheel ruff
       - uses: actions/checkout@v7
+      - name: Lint and formatting
+        run: ruff check . && ruff format --check .
+      - name: Release tag matches the version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          version=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' anical/__init__.py)
+          test "$GITHUB_REF_NAME" = "v$version" || { echo "Tag $GITHUB_REF_NAME doesn't match version $version"; exit 1; }
       - name: pytest (under Xvfb, so the UI smoke tests run)
         run: xvfb-run -a python -m pytest -q
       - name: Arch package
@@ -220,7 +237,7 @@ jobs:
           Get-ChildItem "$env:LOCALAPPDATA\Programs\AniCal" | Format-Table Name
           Test-Path "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\AniCal.lnk"
 
-      # The user's documented setup (D23): Git for Windows (preinstalled) plus scoop's ani-cli and mpv.
+      # The user's documented setup: Git for Windows (preinstalled) plus scoop's ani-cli and mpv.
       - name: Install scoop, ani-cli, mpv, ffmpeg
         shell: pwsh
         run: |
