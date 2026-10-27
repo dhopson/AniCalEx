@@ -1,0 +1,44 @@
+{
+  "about": "Koyomi (暦, 'calendar'), AniCal's mascot: a felt mascot costume with a calendar-page head. Made with a local ComfyUI. The base image was generated with Z-Image Turbo, and each pose is an instruction edit of the base with Qwen-Image-Edit-2511 (Lightning 4-step LoRA, 4 steps, CFG 1, shift 3.1) followed by BiRefNet background removal. All five poses were then cropped to one shared box (x 68-751, y 29-1210 of 832x1216) and scaled to 640 px tall, so Koyomi keeps the same scale and position on every step.",
+  "licenses": {
+    "Z-Image Turbo": "Apache-2.0",
+    "Qwen-Image-Edit-2511": "Apache-2.0",
+    "BiRefNet": "MIT"
+  },
+  "base": {
+    "model": "z_image_turbo_bf16 (+ qwen_3_4b, ae)",
+    "prompt": "full body photo of a woman performer in a Japanese mascot costume, human adult body proportions with a curvy hourglass figure, wide hips, full bust, narrow waist and long legs, wearing a skin-tight one-piece bodysuit made of soft cream white felt with red felt piping at the collar, cuffs and waist, red felt gloves and red felt ankle boots, and an oversized plush mascot head twice the size of a normal head shaped like a square tear-off calendar page with a red felt header band and two silver binder rings on top like ears, big sparkly purple anime eyes, rosy pink felt cheeks, small happy smile, soft felt fabric texture with visible stitching, standing in a friendly pose waving one hand, wholesome, front view, centered, entire figure visible from head to boots, isolated on a plain flat light grey background, no shadow, no text",
+    "seed": 51360086558004,
+    "batch_index": 1,
+    "width": 832,
+    "height": 1216,
+    "steps": 8,
+    "cfg": 1.0,
+    "sampler": "res_multistep",
+    "scheduler": "simple",
+    "shift": 3.0,
+    "rmbg": "birefnet"
+  },
+  "poses": {
+    "anical/data/setup/mascot-welcome.png": {
+      "prompt": "Make her wave hello cheerfully with her right hand raised high and her left hand on her hip, head tilted slightly. Keep the same mascot costume exactly: the same oversized square plush calendar-page head with red header and two silver rings, the same face, the same form-fitting cream felt bodysuit with red trim, red gloves and red boots, the same body shape. Plain flat light grey background, full body visible, no text.",
+      "seed": 1
+    },
+    "anical/data/setup/mascot-client-id.png": {
+      "prompt": "Make her hold up a large golden old-fashioned key in her raised right hand, showing it proudly, left hand on her hip, a small sparkle near the key. Keep the same mascot costume exactly: the same oversized square plush calendar-page head with red header and two silver rings, the same face, the same form-fitting cream felt bodysuit with red trim, red gloves and red boots, the same body shape. Plain flat light grey background, full body visible, no text.",
+      "seed": 1
+    },
+    "anical/data/setup/mascot-sign-in.png": {
+      "prompt": "Make her hold a blue membership card with a green check mark in front of her chest with both hands, showing it to the viewer. Keep the same mascot costume exactly: the same oversized square plush calendar-page head with red header and two silver rings, the same face, the same form-fitting cream felt bodysuit with red trim, red gloves and red boots, the same body shape. Plain flat light grey background, full body visible, no text.",
+      "seed": 1
+    },
+    "anical/data/setup/mascot-playback.png": {
+      "prompt": "Make her hold an old-fashioned felt television remote control up in her right hand, pressing a button on it with her thumb, her left hand giving a cheerful thumbs up. Keep the same mascot costume exactly: the same oversized square plush calendar-page head with red header and two silver rings, the same face, the same form-fitting cream felt bodysuit with red trim, red gloves and red boots, the same body shape. Plain flat light grey background, full body visible, no text.",
+      "seed": 3
+    },
+    "anical/data/setup/mascot-done.png": {
+      "prompt": "Make her jump for joy with both arms raised high above her head, celebrating, with small colourful sparkles around her. Make her eyes happy closed curved arcs. Keep the same mascot costume exactly: the same oversized square plush calendar-page head with red header and two silver rings, the same face, the same form-fitting cream felt bodysuit with red trim, red gloves and red boots, the same body shape. Plain flat light grey background, full body visible, no text.",
+      "seed": 1
+    }
+  }
+}

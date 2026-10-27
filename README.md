@@ -206,7 +206,7 @@ anical/
   data/setup/       the setup wizard's mascot (Koyomi) and per-system install scripts
 packaging/
   PKGBUILD, *.desktop, *.metainfo.xml   Arch package and Linux desktop integration
-  art/              draws the mascot (make-mascot.py)
+  art/mascot.json   how the mascot art was made (ComfyUI models, prompts, seeds)
   pyinstaller/      the macOS and Windows build recipe
   macos/            .icns icon script
   windows/          Inno Setup installer, toast helper recipe, .ico script
