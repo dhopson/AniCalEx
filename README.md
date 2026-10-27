@@ -4,6 +4,8 @@ AniCal is a desktop app for tracking anime on Linux, macOS and Windows. It keeps
 
 **Status: 0.2.0.** Runs on Linux (GNOME), macOS (Apple Silicon and Intel) and Windows x64.
 
+![AniCal on first launch: the setup wizard, with Koyomi waving next to the welcome step](screenshots/setup-wizard.png)
+
 ## Features
 
 - **Setup wizard.** On first launch, Koyomi, AniCal's mascot, walks you through four short steps. You get a MyAnimeList client ID, log in or import a public list, and check for ani-cli and mpv. Each program has an Install button that opens a terminal window for your system. Every step can be skipped, and Back works until you finish. Main menu → Set Up AniCal… opens it again, with what you've already set up filled in.
@@ -211,6 +213,7 @@ packaging/
   macos/            .icns icon script
   windows/          Inno Setup installer, toast helper recipe, .ico script
   ci/               self-test runner and ani-cli harness used by CI
+screenshots/        images used in this README
 tests/              pytest
 ```
 
