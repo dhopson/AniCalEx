@@ -1,0 +1,25 @@
+#!/bin/sh
+# Fake curl for spike S2: answers ani-cli 5.1.6's hianime requests from the
+# fixture files in $FAKE_HIANIME, so no request leaves the machine. Installed
+# under every name ani-cli tries (curl, curl_firefox135, ...).
+# ani-cli's hianime_curl always passes -w ' %{http_code}', so the status is appended.
+url=""
+previous=""
+for arg in "$@"; do
+    case "$previous" in -e | -A | -w | --max-time | --ciphers | --tls13-ciphers) previous="$arg"; continue ;; esac
+    case "$arg" in http://* | https://*) [ -z "$url" ] && url="$arg" ;; esac
+    previous="$arg"
+done
+printf "%s\n" "$url" >>"$FAKE_HIANIME/requests.log"
+case "$url" in
+    *"/search?keyword="*Nothing*) file=empty.html ;;
+    *"/search?keyword="*) file=search.html ;;
+    */api/theme/episode/list/*) file="episodes-${url##*/}.html" ;;
+    */api/theme/episode/servers*) file=servers.html ;;
+    */embed/*) file=embed.html ;;
+    *master.m3u8) file=master.m3u8 ;;
+    *) printf ' 404'; exit 22 ;;
+esac
+[ -f "$FAKE_HIANIME/$file" ] || { printf ' 404'; exit 22; }
+cat "$FAKE_HIANIME/$file"
+printf ' 200'

@@ -6,17 +6,21 @@ notification:
 - Linux: Gio.Notification.
 - macOS: desktop-notifier (UNUserNotificationCenter) in this process. It
   needs a signed app bundle; anywhere else it falls back to Gio.
-- Windows: Gio.Notification for now. GLib shows it there but drops the
-  buttons; the anical-notify helper replaces it with the Windows build.
+- Windows: the anical-notify helper program, in a frozen build. GLib's own
+  Windows notifications drop the buttons.
+Anywhere a native route can't start, Gio.Notification is used.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
+import subprocess
 import sys
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from gi.repository import Gio, GLib
 
@@ -107,6 +111,61 @@ class DesktopNotifierSender:
         )
 
 
+class HelperNotifierSender:
+    """Windows: toasts through the anical-notify helper (D24), which runs
+    beside AniCal and reports clicks back as JSON lines."""
+
+    backend = "anical-notify"
+
+    def __init__(self, app: Gio.Application, program: Path):
+        self._app = app
+        self._notices: dict[str, Notice] = {}
+        self.ready = threading.Event()
+        self._process = subprocess.Popen(
+            [str(program)],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            encoding="utf-8",
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+        )
+        threading.Thread(target=self._read, name="anical-notify", daemon=True).start()
+
+    def _read(self) -> None:
+        for line in self._process.stdout:
+            try:
+                event = json.loads(line)
+            except ValueError:
+                continue
+            kind = event.get("event")
+            notice = self._notices.get(event.get("key"))
+            if kind == "ready":
+                self.ready.set()
+            elif kind == "clicked" and notice:
+                _activate(self._app, notice.action, notice.target)
+            elif kind == "button" and notice and str(event.get("action", "")).isdecimal():
+                index = int(event["action"])
+                if index < len(notice.buttons):
+                    _activate(self._app, notice.buttons[index].action, notice.buttons[index].target)
+            elif kind == "error":
+                print(f"AniCal: anical-notify: {event.get('message')}", file=sys.stderr)
+
+    def __call__(self, key: str, notice: Notice) -> None:
+        self._notices[key] = notice
+        message = {
+            "op": "send",
+            "key": key,
+            "title": notice.title,
+            "body": notice.body,
+            "buttons": [[str(i), b.label] for i, b in enumerate(notice.buttons)],
+        }
+        try:
+            self._process.stdin.write(json.dumps(message, ensure_ascii=False) + "\n")
+            self._process.stdin.flush()
+        except (OSError, ValueError) as e:
+            print(f"AniCal: couldn’t send a notification: {e}", file=sys.stderr)
+
+
 def _gio_sender(app: Gio.Application) -> Send:
     def send(key: str, notice: Notice) -> None:
         app.send_notification(key, to_gio(notice))
@@ -115,9 +174,12 @@ def _gio_sender(app: Gio.Application) -> Send:
 
 
 def notification_sender(app: Gio.Application, system: System | None = None) -> Send:
-    if (system or current()) is System.MACOS and getattr(sys, "frozen", False):
+    system = system or current()
+    if getattr(sys, "frozen", False) and system is not System.LINUX:
         try:
-            return DesktopNotifierSender(app)
+            if system is System.MACOS:
+                return DesktopNotifierSender(app)
+            return HelperNotifierSender(app, Path(sys.executable).parent / "anical-notify" / "anical-notify.exe")
         except Exception as e:  # noqa: BLE001 - notifications are optional; Gio still works
             print(f"AniCal: native notifications unavailable, using GLib: {e}", file=sys.stderr)
     return _gio_sender(app)

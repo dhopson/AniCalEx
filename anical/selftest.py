@@ -124,6 +124,25 @@ def run(window: Gtk.Window, paths, send) -> dict:
     def notifications():
         return True, getattr(send, "backend", None) or "Gio.Notification"
 
+    def ani_cli_runs():
+        """ani-cli --version through the same launch code as playback (Git Bash and
+        no console window on Windows, a pseudo-terminal elsewhere)."""
+        from anical.platform.anicli import find_ani_cli, find_bash
+        from anical.ui.playback_controller import _spawn
+
+        ani_cli = find_ani_cli()
+        bash = find_bash() if system is System.WINDOWS else None
+        if ani_cli is None or (system is System.WINDOWS and bash is None):
+            return False, f"not installed (ani-cli {ani_cli}, bash {bash})"
+        argv = [bash, ani_cli.replace("\\", "/")] if bash else [ani_cli]
+        process, terminal = _spawn([*argv, "--version"], dict(os.environ))
+        try:
+            _stdout, stderr = process.communicate(timeout=60)
+        finally:
+            if terminal is not None:
+                os.close(terminal)
+        return process.returncode == 0, f"{' '.join(argv)}: exit {process.returncode} {stderr.decode(errors='replace')[-300:]}"
+
     def programs():
         from anical.platform.anicli import find_ani_cli, find_bash, find_player
 
@@ -141,9 +160,12 @@ def run(window: Gtk.Window, paths, send) -> dict:
     check("token_store", frozen and system is not System.LINUX, token_store)
     check("notifications", False, notifications)
     check("playback_programs", False, programs)
+    check("ani_cli_runs", bool(os.environ.get("ANICAL_SELFTEST_ANICLI")), ani_cli_runs)
     if frozen and system is System.MACOS:
-        backend = getattr(send, "backend", "")
-        checks["notifications"].update(required=True, ok=backend == "CocoaNotificationCenter")
+        checks["notifications"].update(required=True, ok=getattr(send, "backend", "") == "CocoaNotificationCenter")
+    if frozen and system is System.WINDOWS:
+        ready = getattr(send, "ready", None)
+        checks["notifications"].update(required=True, ok=ready is not None and ready.wait(15))
     return {
         "passed": all(c["ok"] for c in checks.values() if c["required"]),
         "version": __version__,

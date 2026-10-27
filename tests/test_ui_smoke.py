@@ -349,6 +349,11 @@ def test_calendar_can_use_english_titles(window, repo, display):
 # Playback (fake ani-cli, real Gio.Subprocess)
 
 
+# Unpackaged, AniCal's playback helpers are scripts, which Windows can't run;
+# the Windows build's self-test and ani-cli harness cover playback there.
+launches_ani_cli = pytest.mark.skipif(os.name == "nt", reason="needs the packaged helpers on Windows")
+
+
 def play_and_wait(playback, episode_id):
     reports = []
     handler = playback.connect("finished", lambda _p, report: reports.append(report))
@@ -363,6 +368,7 @@ def first_episode(repo, title="Show", **draft):
     return anime_id, repo.episodes(anime_id).episodes[0]
 
 
+@launches_ani_cli
 def test_playing_to_the_end_marks_watched(playback, repo, conn, monkeypatch):
     monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof","percent":96.5,"position":1380,"duration":1420}')
     anime_id, episode = first_episode(repo)
@@ -386,6 +392,7 @@ def test_ani_cli_gets_a_terminal_so_it_keeps_our_picker(playback, repo, monkeypa
     assert json.loads(log.read_text())["stdin_is_terminal"] is True
 
 
+@launches_ani_cli
 def test_stopping_early_does_not_mark_watched(playback, repo, monkeypatch):
     monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"quit","percent":42,"position":600,"duration":1420}')
     _, episode = first_episode(repo)
@@ -394,6 +401,7 @@ def test_stopping_early_does_not_mark_watched(playback, repo, monkeypatch):
     assert repo.watch_state(episode.id) is WatchState.UNWATCHED
 
 
+@launches_ani_cli
 def test_auto_mark_can_be_turned_off(playback, repo, settings, monkeypatch):
     settings.set(PLAYBACK_AUTO_MARK, False)
     monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof","percent":99}')
@@ -403,6 +411,7 @@ def test_auto_mark_can_be_turned_off(playback, repo, settings, monkeypatch):
     assert repo.watch_state(episode.id) is WatchState.UNWATCHED
 
 
+@launches_ani_cli
 def test_ambiguous_search_asks_once_then_remembers(playback, repo, monkeypatch):
     monkeypatch.setenv("FAKE_RESULTS", "Show|Show Season 2")
     monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"quit","percent":5}')
@@ -423,6 +432,7 @@ def test_ambiguous_search_asks_once_then_remembers(playback, repo, monkeypatch):
     playback.disconnect(handler)
 
 
+@launches_ani_cli
 def test_cancelled_pick_and_unreleased_episode(playback, repo, monkeypatch):
     monkeypatch.setenv("FAKE_RESULTS", "A|B")
     handler = playback.connect("pick-requested", lambda _p, request: request.respond(None))
@@ -435,6 +445,7 @@ def test_cancelled_pick_and_unreleased_episode(playback, repo, monkeypatch):
     assert play_and_wait(playback, episode.id).result.outcome.value == "episode_not_found"
 
 
+@launches_ani_cli
 def test_one_playback_at_a_time_and_missing_ani_cli(playback, repo, settings, monkeypatch):
     monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof"}')
     _, episode = first_episode(repo)
@@ -446,6 +457,7 @@ def test_one_playback_at_a_time_and_missing_ani_cli(playback, repo, settings, mo
     assert "wasn’t found" in playback.play(episode.id)
 
 
+@launches_ani_cli
 def test_play_buttons_on_show_page_and_calendar(window, repo, monkeypatch):
     import time
 

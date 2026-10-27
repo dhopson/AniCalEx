@@ -32,6 +32,8 @@ RED = "\033[1;31m{}\033[0m"
 
 @pytest.fixture
 def helpers(tmp_path):
+    if os.name == "nt":
+        pytest.skip("unpackaged helpers are scripts, which Windows can't run; the build's self-test covers them")
     return install_helpers(tmp_path / "helpers")
 
 

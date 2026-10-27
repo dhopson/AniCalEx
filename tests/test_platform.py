@@ -1,3 +1,5 @@
+import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -181,3 +183,45 @@ def test_git_bash_search_order(tmp_path):
     registered = touch(tmp_path / "D" / "Git" / "bin" / "bash.exe")
     assert find_bash(None, tmp_path, env, lambda: [tmp_path / "D" / "Git"]) == str(registered)
     assert find_bash(str(tmp_path / "nope.exe"), tmp_path, env, lambda: []) is None
+
+
+# Notifications through a helper program (Windows route, D24)
+
+FAKE_NOTIFY = """
+import json, sys
+print(json.dumps({"event": "ready"}), flush=True)
+for line in sys.stdin:
+    message = json.loads(line)
+    # "Click" the notification's first button, then the notification itself.
+    print(json.dumps({"event": "button", "key": message["key"], "action": "0"}), flush=True)
+    print(json.dumps({"event": "clicked", "key": message["key"]}), flush=True)
+"""
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="the fake helper is a script with a shebang")
+def test_helper_sender_routes_clicks_to_app_actions(tmp_path):
+    gi = pytest.importorskip("gi")
+    from gi.repository import GLib
+
+    from anical.platform.notify import Button, HelperNotifierSender, Notice
+
+    assert gi
+    program = tmp_path / "anical-notify"
+    program.write_text(f"#!{sys.executable}\n{FAKE_NOTIFY}")
+    program.chmod(0o755)
+
+    class FakeApp:
+        def __init__(self):
+            self.activated = []
+
+        def activate_action(self, name, target):
+            self.activated.append((name, target.get_int64() if target is not None else None))
+
+    app = FakeApp()
+    sender = HelperNotifierSender(app, program)
+    assert sender.ready.wait(10)
+    sender("available-7", Notice("Show: Episode 3", "body", "app.show-anime", 5, (Button("Play", "app.play-episode", 7),)))
+    deadline = time.monotonic() + 10
+    while len(app.activated) < 2 and time.monotonic() < deadline:
+        GLib.MainContext.default().iteration(False)
+    assert app.activated == [("play-episode", 7), ("show-anime", 5)]
