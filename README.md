@@ -47,12 +47,20 @@ AniCal is a desktop app for tracking anime on Linux, macOS and Windows. It keeps
 
 ### Linux (Arch / CachyOS)
 
+Download `anical-<version>-1-any.pkg.tar.zst` from the [release page](https://github.com/dhopson/AniCalEx/releases/latest) and install it:
+
 ```sh
-cd packaging
-makepkg -si      # builds from this checkout; pulls in python-build and python-installer
+sudo pacman -U anical-<version>-1-any.pkg.tar.zst
 ```
 
-This installs the `anical` command, a desktop entry, the icon and AppStream metadata, so AniCal appears in GNOME's app grid. To remove it, run `sudo pacman -R anical`. Your library stays in `~/.local/share/anical/`.
+Or build the package from this checkout:
+
+```sh
+cd packaging
+makepkg -si      # pulls in python-build and python-installer
+```
+
+Either way, this installs the `anical` command, a desktop entry, the icon and AppStream metadata, so AniCal appears in GNOME's app grid. To remove it, run `sudo pacman -R anical`. Your library stays in `~/.local/share/anical/`.
 
 On other distributions, [run it from source](#running-from-source).
 
@@ -60,7 +68,7 @@ For playback, install `ani-cli` and `mpv` from your distribution or from [ani-cl
 
 ### macOS
 
-1. Download `AniCal-<version>-macos-arm64.dmg` (Apple Silicon) or `AniCal-<version>-macos-x86_64.dmg` (Intel) from the release page. Open it and drag AniCal to Applications.
+1. Download `AniCal-<version>-macos-arm64.dmg` (Apple Silicon) or `AniCal-<version>-macos-x86_64.dmg` (Intel) from the [release page](https://github.com/dhopson/AniCalEx/releases/latest). Open it and drag AniCal to Applications.
 2. AniCal isn't notarized by Apple, so the first time, **right-click AniCal → Open → Open**. If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/AniCal.app` in Terminal and try again.
 3. For playback, install ani-cli from its own Homebrew tap (it isn't in Homebrew's main collection), and mpv:
 
@@ -77,7 +85,7 @@ The app is signed ad hoc, so after an update macOS may ask once whether AniCal m
 
 ### Windows
 
-1. Download `AniCal-<version>-windows-x64-setup.exe` from the release page and run it. It installs for your user only, so it needs no administrator rights. There's also `AniCal-<version>-windows-x64-portable.zip`, which runs from any folder.
+1. Download `AniCal-<version>-windows-x64-setup.exe` from the [release page](https://github.com/dhopson/AniCalEx/releases/latest) and run it. It installs for your user only, so it needs no administrator rights. There's also `AniCal-<version>-windows-x64-portable.zip`, which runs from any folder.
 2. AniCal isn't code-signed, so SmartScreen may warn. Choose **More info → Run anyway**.
 3. For playback, follow the Windows part of [ani-cli's install instructions](https://github.com/pystardust/ani-cli):
    1. Install Git for Windows and [scoop](https://scoop.sh).
