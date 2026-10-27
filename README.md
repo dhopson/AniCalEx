@@ -59,7 +59,15 @@ For playback, install `ani-cli` and `mpv` from your distribution or from [ani-cl
 
 1. Download `AniCal-<version>-macos-arm64.dmg` (Apple Silicon) or `AniCal-<version>-macos-x86_64.dmg` (Intel) from the release page. Open it and drag AniCal to Applications.
 2. AniCal isn't notarized by Apple, so the first time, **right-click AniCal → Open → Open**. If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/AniCal.app` in Terminal and try again.
-3. For playback, run `brew install ani-cli mpv`. See [ani-cli's install notes](https://github.com/pystardust/ani-cli) for details.
+3. For playback, install ani-cli from its own Homebrew tap (it isn't in Homebrew's main collection), and mpv:
+
+   ```sh
+   brew tap pystardust/ani-cli https://github.com/pystardust/ani-cli.git
+   brew trust pystardust/ani-cli
+   brew install ani-cli mpv
+   ```
+
+   See [ani-cli's install notes](https://github.com/pystardust/ani-cli) for details.
 4. Allow notifications when asked, so you hear about new episodes.
 
 The app is signed ad hoc, so after an update macOS may ask once whether AniCal may use its Keychain item.

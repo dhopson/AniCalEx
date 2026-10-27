@@ -40,7 +40,7 @@ _INSTALL_HINTS = {
         "mpv": "Install mpv, or enter the full path to it",
     },
     System.MACOS: {
-        "ani-cli": "Install it with Homebrew (brew install ani-cli), or enter the full path to it",
+        "ani-cli": "Install it from ani-cli’s Homebrew tap (see the README), or enter the full path to it",
         "mpv": "Install it with Homebrew (brew install mpv), or enter the full path to it",
     },
     System.WINDOWS: {
