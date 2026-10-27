@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import sys
 import time
@@ -84,6 +85,7 @@ class AniCalApplication(Adw.Application):
         self._playback: PlaybackController | None = None
         self._notifier: Notifier | None = None
         self._data_dir = None
+        self.selftest_status: int | None = None
 
     def do_startup(self):
         Adw.Application.do_startup(self)
@@ -142,14 +144,20 @@ class AniCalApplication(Adw.Application):
         )
         self._display = DisplaySettings(settings)
         self._playback = PlaybackController(repository, PlaybackRepository(self._conn), settings, paths.runtime)
-        MainWindow(
+        window = MainWindow(
             application=self,
             repository=repository,
             sync_controller=self._sync,
             display=self._display,
             playback=self._playback,
-        ).present()
-        self._notifier = Notifier(ScheduleRepository(self._conn), settings, self._display, notification_sender(self))
+        )
+        window.present()
+        send = notification_sender(self)
+        self._notifier = Notifier(ScheduleRepository(self._conn), settings, self._display, send)
+        if report := os.environ.get("ANICAL_SELFTEST"):
+            from anical import selftest
+
+            selftest.schedule(self, window, paths, send, report)
         self._sync.connect("library-changed", lambda *_: self._notifier.check())
         self._sync.start()  # local data is already on screen; refresh in the background if due
         self._notifier.start()
@@ -187,4 +195,10 @@ class AniCalApplication(Adw.Application):
 
 
 def main(argv: list[str] | None = None) -> int:
-    return AniCalApplication().run(argv if argv is not None else sys.argv)
+    if report := os.environ.get("ANICAL_SELFTEST"):
+        from anical import selftest
+
+        selftest.redirect_stderr(report)
+    app = AniCalApplication()
+    status = app.run(argv if argv is not None else sys.argv)
+    return status if app.selftest_status is None else app.selftest_status

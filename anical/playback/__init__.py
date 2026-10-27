@@ -18,7 +18,7 @@ def install_helpers(directory: Path) -> tuple[Path, Path]:
     write the mpv progress script there.
 
     Returns (helpers folder, progress script). A frozen build (Windows, macOS)
-    ships the helpers as programs in its own `helpers` folder. Otherwise they
+    ships the helpers as programs next to its own executable. Otherwise they
     are written as scripts for this Python, rewritten on every start so they
     always match the running version of AniCal.
     """
@@ -28,7 +28,7 @@ def install_helpers(directory: Path) -> tuple[Path, Path]:
     _write(progress_script, (data / "anical-progress.lua").read_text(encoding="utf-8"), mode=0o644)
 
     if getattr(sys, "frozen", False):
-        bundled = Path(sys.executable).parent / "helpers"
+        bundled = Path(sys.executable).parent
         missing = [name for name in HELPERS if not any(bundled.glob(f"{name}*"))]
         if missing:
             raise PlaybackError(f"This build is missing its playback helpers ({', '.join(missing)}) in {bundled}")

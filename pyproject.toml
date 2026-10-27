@@ -16,6 +16,7 @@ dependencies = [
     "tzdata; sys_platform == 'win32'",  # Windows has no zoneinfo database (D22)
     "tzlocal; sys_platform == 'win32'",  # Windows zone names to IANA
     "keyring; sys_platform == 'darwin'",  # Keychain token store (D25)
+    "desktop-notifier; sys_platform == 'darwin'",  # notifications with buttons (D24)
 ]
 
 [project.optional-dependencies]
