@@ -114,8 +114,9 @@ jobs:
           fi
           /usr/bin/python3 packaging/ci/run_selftest.py out/selftest -- "$RUNNER_TEMP/AniCal.app/Contents/MacOS/AniCal"
 
-      # A screenshot of each setup wizard step, for review.
+      # A screenshot of each setup wizard step, for review only.
       - name: Setup wizard screenshots
+        continue-on-error: true
         run: |
           for step in 1 2 3 4; do
             ANICAL_SELFTEST_WIZARD=$step /usr/bin/python3 packaging/ci/run_selftest.py "out/wizard-$step" -- "$RUNNER_TEMP/AniCal.app/Contents/MacOS/AniCal"
@@ -236,6 +237,7 @@ jobs:
         run: python packaging/ci/run_selftest.py out/selftest -- "$env:LOCALAPPDATA\Programs\AniCal\AniCal.exe"
 
       - name: Setup wizard screenshots
+        continue-on-error: true
         shell: pwsh
         run: |
           foreach ($step in 1..4) {

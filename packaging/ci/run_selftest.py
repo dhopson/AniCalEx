@@ -54,10 +54,10 @@ def main():
     wall = round(time.monotonic() - started, 2)
     shot = "skipped: no report"
     if os.path.exists(report_path) and process.poll() is None:
-        time.sleep(1)
+        time.sleep(2)  # let the window draw again after the checks
         shot = screenshot(os.path.join(out_dir, "screenshot.png"))
     try:
-        code = process.wait(timeout=HOLD_S + 30)
+        code = process.wait(timeout=HOLD_S + 120)  # quitting is slow on the Intel macOS runner
     except subprocess.TimeoutExpired:
         process.kill()
         code = 3

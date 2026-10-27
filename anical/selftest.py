@@ -204,4 +204,7 @@ def schedule(app, window: Gtk.Window, paths, send, report_path: str) -> None:
         GLib.timeout_add_seconds(int(os.environ.get("ANICAL_SELFTEST_HOLD_S", "0")), lambda: app.quit())
         return GLib.SOURCE_REMOVE
 
-    GLib.timeout_add(1500, finish)
+    # The checks block the main loop (14 s on macOS CI), so when a wizard step is
+    # being screenshotted, let it appear and draw first.
+    delay_ms = 5000 if os.environ.get("ANICAL_SELFTEST_WIZARD") else 1500
+    GLib.timeout_add(delay_ms, finish)
