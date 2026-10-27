@@ -159,7 +159,9 @@ class AniCalApplication(Adw.Application):
             repository, settings, MalSyncService(http, token_store(paths.data)), http, paths.cache / "covers"
         )
         self._display = DisplaySettings(settings)
-        self._playback = PlaybackController(repository, PlaybackRepository(self._conn), settings, paths.runtime)
+        self._playback = PlaybackController(
+            repository, PlaybackRepository(self._conn), settings, self._display, paths.runtime
+        )
         window = MainWindow(
             application=self,
             repository=repository,

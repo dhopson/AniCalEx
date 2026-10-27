@@ -88,10 +88,10 @@ def display(settings):
 
 
 @pytest.fixture
-def playback(repo, settings, conn, tmp_path):
+def playback(repo, settings, display, conn, tmp_path):
     settings.set(PLAYBACK_EXECUTABLE, str(Path(__file__).parent / "fake_ani_cli.py"))
     settings.set(PLAYBACK_PLAYER, str(Path(__file__).parent / "fake_mpv.py"))
-    return PlaybackController(repo, PlaybackRepository(conn), settings, tmp_path / "run")
+    return PlaybackController(repo, PlaybackRepository(conn), settings, display, tmp_path / "run")
 
 
 @pytest.fixture
@@ -664,7 +664,7 @@ def test_required_programs_add_git_bash_on_windows(playback, monkeypatch):
 
 
 def test_double_click_plays_and_a_single_click_still_opens(monkeypatch):
-    from anical.ui.gestures import on_double_click
+    from anical.ui.gestures import on_row_double_click
 
     monkeypatch.setattr(Gtk.Settings.get_default().props, "gtk_double_click_time", 10)
     box = Gtk.ListBox()
@@ -673,7 +673,7 @@ def test_double_click_plays_and_a_single_click_still_opens(monkeypatch):
     window = Gtk.Window(child=box)
     opened, played = [], []
     row.connect("activated", lambda *_: opened.append(1))
-    gesture = on_double_click(row, lambda: played.append(1))
+    gesture = on_row_double_click(row, lambda: played.append(1))
 
     gesture.emit("pressed", 1, 0.0, 0.0)
     gesture.emit("released", 1, 0.0, 0.0)
@@ -720,3 +720,71 @@ def test_play_show_with_nothing_left_to_play(window, repo):
     repo.set_watch_state([e.id for e in repo.episodes(anime_id).episodes], WatchState.WATCHED)
     window.play_show(anime_id)
     assert not window._playing.showing and window.playback.playing is None
+
+
+def test_week_card_plays_on_double_click_and_has_a_context_menu(window, repo, monkeypatch):
+    import time
+
+    from anical.ui import gestures
+
+    anime_id = repo.create_anime(AnimeDraft(title="Card", airing_status=AiringStatus.AIRING, total_episodes=2))
+    window.schedule.set_user_airings(anime_id, [(1, int(time.time()) - 3600)])
+    window.library_changed()
+    window.calendar_view.show_mode("week")
+    drain()
+    cards = [w for w in all_widgets(window.calendar_view) if w.has_css_class("cal-card")]
+    (card,) = [c for c in cards if "Card" in c.get_tooltip_text()]
+    assert "Double-click to play" in card.get_tooltip_text()
+    played, opened = [], []
+    monkeypatch.setattr(window, "play_episode", played.append)
+    monkeypatch.setattr(window, "show_anime", opened.append)
+
+    card.emit("activate")  # Enter or Space
+    assert played == [repo.episodes(anime_id).episodes[0].id]
+
+    # Newest first: the context menu's gesture, then the double-click's, then the button's own.
+    context, double = [c for c in card.observe_controllers() if isinstance(c, Gtk.GestureClick)][:2]
+    double.emit("pressed", 1, 1.0, 1.0)
+    double.emit("released", 1, 1.0, 1.0)
+    drain()
+    assert len(played) == 1 and opened == []  # a single click does nothing
+    double.emit("pressed", 2, 1.0, 1.0)
+    assert len(played) == 2
+
+    context.emit("pressed", 1, 1.0, 1.0)  # no current event: taken as a secondary click
+    menus = [w for w in all_widgets(card) if isinstance(w, Gtk.PopoverMenu)]
+    assert len(menus) == 1
+    menus[0].popdown()
+    drain()
+
+    monkeypatch.setattr(gestures, "current", lambda: gestures.System.MACOS)
+    assert gestures.context_click_hint() == "Control-click"
+
+
+def all_widgets(widget):
+    found, stack = [], [widget]
+    while stack:
+        current = stack.pop()
+        found.append(current)
+        child = current.get_first_child()
+        while child is not None:
+            stack.append(child)
+            child = child.get_next_sibling()
+    return found
+
+
+@launches_ani_cli
+def test_playing_card_and_messages_use_english_titles_when_chosen(window, repo, settings, monkeypatch):
+    monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof"}')
+    anime_id, _ = first_episode(repo, title="Sousou no Frieren", title_en="Frieren: Beyond Journey's End")
+    settings.set(DISPLAY_ENGLISH_TITLES, True)
+    window.play_show(anime_id)
+    assert window._playing._episode.get_label() == "Frieren: Beyond Journey's End, Episode 1"
+    wait_until(lambda: window.playback.playing is None, timeout=15)
+    drain()
+
+    settings.set(DISPLAY_ENGLISH_TITLES, False)
+    window.play_show(anime_id)  # episode 1 was marked watched; episode 2 is next
+    assert window._playing._episode.get_label() == "Sousou no Frieren, Episode 2"
+    wait_until(lambda: window.playback.playing is None, timeout=15)
+    drain()

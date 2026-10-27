@@ -25,7 +25,7 @@ from anical.domain.calendar import (
 from anical.domain.models import WatchState
 from anical.domain.schedule import AiringSource
 from anical.ui.cover import cover
-from anical.ui.gestures import on_double_click
+from anical.ui.gestures import add_context_menu, context_click_hint, on_double_click, on_row_double_click
 
 if TYPE_CHECKING:
     from anical.ui.window import MainWindow
@@ -223,7 +223,8 @@ class CalendarView(Adw.Bin):
         return menu
 
     def _card(self, entry: CalendarEntry, now: int) -> Gtk.Widget:
-        """Compact entry for week columns: click for a menu."""
+        """Compact entry for week columns. Double-click (or Enter) plays an aired episode
+        and opens the show otherwise; the rest is in its context menu."""
         text = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, valign=Gtk.Align.CENTER, hexpand=True)
         text.append(
             Gtk.Label(
@@ -249,14 +250,28 @@ class CalendarView(Adw.Bin):
         body.append(text)
         status = entry.status(now, self._display.availability_lag_s)
         description = f"{self._name(entry)}, {self._describe(entry)} — {status.label}"
-        button = Gtk.MenuButton(
+        if entry.airs_at <= now:
+            hint = "Double-click to play"
+
+            def primary() -> None:
+                self._window.play_episode(entry.episode_id)
+        else:
+            hint = "Double-click to open the show"
+
+            def primary() -> None:
+                self._window.show_anime(entry.anime_id)
+
+        # A plain button for focus, keyboard and styling; clicks are handled by the gestures.
+        button = Gtk.Button(
             child=body,
-            menu_model=self._entry_menu(entry, now),
-            tooltip_text=description,
+            tooltip_text=f"{description}\n{hint}, {context_click_hint().lower()} for more",
             css_classes=["flat", "cal-card", *self._status_classes(entry, now)],
             overflow=Gtk.Overflow.HIDDEN,
         )
         button.update_property([Gtk.AccessibleProperty.LABEL], [description])
+        button.connect("activate", lambda *_: primary())  # Enter or Space
+        on_double_click(button, primary)
+        add_context_menu(button, self._entry_menu(entry, now))
         return button
 
     def _entry_row(self, entry: CalendarEntry, now: int, in_show_group: bool = False) -> Adw.ActionRow:
@@ -297,7 +312,8 @@ class CalendarView(Adw.Bin):
             row.add_suffix(play)
         row.connect("activated", lambda *_: self._window.show_anime(entry.anime_id))
         if entry.airs_at <= now:
-            on_double_click(row, lambda: self._window.play_episode(entry.episode_id))
+            on_row_double_click(row, lambda: self._window.play_episode(entry.episode_id))
+        add_context_menu(row, self._entry_menu(entry, now))
         return row
 
     def _day_heading(self, day: datetime.date) -> str:
@@ -433,7 +449,7 @@ class CalendarView(Adw.Bin):
             row.add_prefix(cover(show.cover_path, self._name(show), 32, 45))
             row.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
             row.connect("activated", lambda _r, anime_id=show.anime_id: self._window.show_anime(anime_id))
-            on_double_click(row, lambda anime_id=show.anime_id: self._window.play_show(anime_id))
+            on_row_double_click(row, lambda anime_id=show.anime_id: self._window.play_show(anime_id))
             group.add(row)
         return group
 

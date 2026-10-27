@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from enum import StrEnum
 from zoneinfo import ZoneInfo
 
-from anical.domain.models import WatchState
+from anical.domain.models import WatchState, display_title
 from anical.domain.schedule import AiringSource, Precision
 
 DEFAULT_AVAILABILITY_LAG_S = 2 * 60 * 60
@@ -54,7 +54,7 @@ class CalendarEntry:
     confirmed_available: bool = False  # it has been streamed successfully
 
     def display_title(self, prefer_english: bool) -> str:
-        return self.title_en if prefer_english and self.title_en else self.title
+        return display_title(self.title, self.title_en, prefer_english)
 
     @property
     def estimated(self) -> bool:

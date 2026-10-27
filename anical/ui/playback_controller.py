@@ -28,7 +28,7 @@ from anical.db.settings import (
     PLAYBACK_QUALITY,
     SettingsRepository,
 )
-from anical.domain.models import EpisodeKind, WatchSource, WatchState
+from anical.domain.models import Anime, Episode, EpisodeKind, WatchSource, WatchState, display_title
 from anical.domain.playback import (
     MODES,
     QUALITIES,
@@ -46,6 +46,7 @@ from anical.domain.playback import (
 from anical.platform import System, current
 from anical.platform.anicli import find_ani_cli, find_bash, find_player
 from anical.playback import install_helpers
+from anical.ui.display import DisplaySettings
 
 BACKENDS = ("ani-cli", "external")
 
@@ -116,12 +117,14 @@ class PlaybackController(GObject.Object):
         repository: LibraryRepository,
         playback: PlaybackRepository,
         settings: SettingsRepository,
+        display: DisplaySettings,
         runtime_dir: Path,
     ):
         super().__init__()
         self._repo = repository
         self._playback = playback
         self._settings = settings
+        self._display = display
         self._runtime_dir = runtime_dir
         self._helpers: tuple[Path, Path] | None = None
         self._session: _Session | None = None
@@ -195,6 +198,10 @@ class PlaybackController(GObject.Object):
 
     # Playback
 
+    def _label(self, anime: Anime, episode: Episode) -> str:
+        """How messages name what's playing, with the English title if that's preferred."""
+        return f"{display_title(anime.title, anime.title_en, self._display.english_titles)}, {episode.label}"
+
     def play(self, episode_id: int) -> str | None:
         """Start playback. Returns a message explaining why it couldn't start, or None."""
         if self._session:
@@ -238,7 +245,7 @@ class PlaybackController(GObject.Object):
             session_id=self._playback.start_session(episode.id),
             anime_id=anime.id,
             episode_id=episode.id,
-            label=f"{anime.title}, {episode.label}",
+            label=self._label(anime, episode),
             mapping=mapping,
             directory=directory,
             progress_path=launch.progress_path,
@@ -290,7 +297,7 @@ class PlaybackController(GObject.Object):
             PlaybackReport(
                 anime.id,
                 episode.id,
-                f"{anime.title}, {episode.label}",
+                self._label(anime, episode),
                 mapping.query,
                 PlaybackResult(Outcome.OPENED),
                 False,

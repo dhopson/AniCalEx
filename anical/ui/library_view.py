@@ -9,7 +9,7 @@ from gi.repository import Adw, Gtk
 from anical.domain.library import LibraryQuery, SortKey, WatchFilter, matches, sort_key
 from anical.domain.models import MAL_LIST_STATUS_LABELS, AiringStatus, AnimeSummary
 from anical.ui.cover import cover
-from anical.ui.gestures import on_double_click
+from anical.ui.gestures import on_row_double_click
 
 if TYPE_CHECKING:
     from anical.ui.window import MainWindow
@@ -135,7 +135,7 @@ class LibraryView(Adw.Bin):
         self._list.remove_all()
         for summary in self._summaries:
             row = AnimeRow(summary)
-            on_double_click(row, lambda anime_id=summary.id: self._window.play_show(anime_id))
+            on_row_double_click(row, lambda anime_id=summary.id: self._window.play_show(anime_id))
             self._list.append(row)
         self._render()
 

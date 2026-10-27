@@ -114,6 +114,11 @@ def _date_error(value: str) -> str | None:
     return None
 
 
+def display_title(title: str, title_en: str | None, prefer_english: bool) -> str:
+    """The title to show: the English one when preferred (Preferences) and known."""
+    return title_en if prefer_english and title_en else title
+
+
 @dataclass(frozen=True, kw_only=True)
 class AnimeDraft:
     """The user-editable fields of an anime entry."""

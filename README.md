@@ -28,7 +28,8 @@ AniCal is a desktop app for tracking anime on Linux, macOS and Windows. It keeps
   - Optionally, the calendar can use English titles where MAL has them (Preferences → General → Use English Titles).
 - **Playback.** Play buttons on the show page and in the calendar run `ani-cli` for that exact episode, and ani-cli plays it in mpv.
   - The show page also has a "Play Episode N" button for the next unwatched episode that has aired.
-  - Double-clicking a show in the library plays that same next episode, and double-clicking an aired episode in the calendar's lists plays it. A single click still opens the show.
+  - Double-clicking a show in the library plays that same next episode, and double-clicking an aired episode in the calendar plays it. In the library and the calendar's lists a single click still opens the show; in the week view a single click does nothing.
+  - Calendar episodes have a context menu (Play, Open Show, Mark Watched): right-click, or on a Mac Control-click or a two-finger tap. A long press works on touch screens, and the Menu key or Shift+F10 from the keyboard. Enter on a week-view episode plays it.
   - While ani-cli finds and starts the episode, a small card in the window's corner says what's playing. It closes when playback ends, or with its close button.
   - **Finding the show:** if ani-cli's search finds several shows, AniCal asks which one is right and remembers the answer. Per show, you can change the search text, forget the chosen match, set an episode offset for differently numbered seasons, or choose sub or dub (show menu → Playback Settings…).
   - **Watched tracking:** a small mpv script reports how far playback got. If you play to the end or past 90%, the episode is marked watched, with Undo. If you stop earlier, AniCal asks.
