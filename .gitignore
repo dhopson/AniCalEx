@@ -45,3 +45,6 @@ __pycache__/
 build/
 dist/
 out/
+
+# Screenshots mpv saves into the folder playback was started from
+mpv-shot*.jpg
