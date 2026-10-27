@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 
@@ -264,3 +265,16 @@ class EpisodeList:
     @property
     def regular_count(self) -> int:
         return sum(1 for e in self.episodes if e.kind is EpisodeKind.REGULAR)
+
+    def next_to_play(self, airs_at: Mapping[int, int], now: int) -> Episode | None:
+        """The first unwatched numbered episode that has aired, or has no known airing
+        time. `airs_at` maps episode ids to their airing time (Unix seconds)."""
+        for episode in self.episodes:
+            aired = airs_at.get(episode.id)
+            if (
+                episode.kind is EpisodeKind.REGULAR
+                and episode.state is WatchState.UNWATCHED
+                and (aired is None or aired <= now)
+            ):
+                return episode
+        return None

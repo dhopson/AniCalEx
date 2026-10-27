@@ -25,6 +25,7 @@ from anical.domain.calendar import (
 from anical.domain.models import WatchState
 from anical.domain.schedule import AiringSource
 from anical.ui.cover import cover
+from anical.ui.gestures import on_double_click
 
 if TYPE_CHECKING:
     from anical.ui.window import MainWindow
@@ -295,6 +296,8 @@ class CalendarView(Adw.Bin):
             play.connect("clicked", lambda *_: self._window.play_episode(entry.episode_id))
             row.add_suffix(play)
         row.connect("activated", lambda *_: self._window.show_anime(entry.anime_id))
+        if entry.airs_at <= now:
+            on_double_click(row, lambda: self._window.play_episode(entry.episode_id))
         return row
 
     def _day_heading(self, day: datetime.date) -> str:
@@ -430,6 +433,7 @@ class CalendarView(Adw.Bin):
             row.add_prefix(cover(show.cover_path, self._name(show), 32, 45))
             row.add_suffix(Gtk.Image(icon_name="go-next-symbolic"))
             row.connect("activated", lambda _r, anime_id=show.anime_id: self._window.show_anime(anime_id))
+            on_double_click(row, lambda anime_id=show.anime_id: self._window.play_show(anime_id))
             group.add(row)
         return group
 

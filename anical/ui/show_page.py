@@ -161,7 +161,7 @@ class ShowPage(Adw.NavigationPage):
             titles.append(_selectable_label(" · ".join(alternatives), ["dim-label"]))
         episode_list = self._repo.episodes(self._anime_id)
         airings = self._schedule.episode_airings(self._anime_id)
-        if next_episode := self._next_to_play(episode_list, airings):
+        if next_episode := self._window.next_episode(self._anime_id):
             play = Gtk.Button(
                 label=f"Play {next_episode.label}",
                 halign=Gtk.Align.START,
@@ -221,20 +221,6 @@ class ShowPage(Adw.NavigationPage):
         if history := self._history_group(episode_list):
             self._content.append(history)
         self._content.append(self._episodes_group(episode_list, airings))
-
-    @staticmethod
-    def _next_to_play(episode_list: EpisodeList, airings: dict[int, EpisodeAiring]) -> Episode | None:
-        """The first unwatched numbered episode that has aired (or has no known date)."""
-        now = int(time.time())
-        for episode in episode_list.episodes:
-            airing = airings.get(episode.id)
-            if (
-                episode.kind is EpisodeKind.REGULAR
-                and episode.state is WatchState.UNWATCHED
-                and (airing is None or airing.airs_at <= now)
-            ):
-                return episode
-        return None
 
     def _history_group(self, episode_list: EpisodeList) -> Adw.PreferencesGroup | None:
         """ani-cli's history records the last *launched* episode, so it is only a hint."""

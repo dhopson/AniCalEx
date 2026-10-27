@@ -106,6 +106,16 @@ button.cal-cell.compact { min-height: 44px; }
 }
 .wizard-step-dot.current { background-color: var(--accent-bg-color); min-width: 20px; }
 .wizard-step-dot.done { background-color: color-mix(in srgb, var(--accent-bg-color) 50%, transparent); }
+
+/* The "Playing episode" card in the window's corner. */
+.playing-card {
+  background-color: var(--popover-bg-color);
+  color: var(--popover-fg-color);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 2px 8px color-mix(in srgb, black 30%, transparent);
+}
+.playing-scene { border-radius: 6px; }
 """
 
 

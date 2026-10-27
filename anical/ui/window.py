@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from gi.repository import Adw, Gio, GObject, Gtk
@@ -9,7 +10,7 @@ from gi.repository import Adw, Gio, GObject, Gtk
 from anical.db.playback import PlaybackRepository
 from anical.db.repository import LibraryRepository
 from anical.db.schedule import ScheduleRepository
-from anical.domain.models import WatchState
+from anical.domain.models import Episode, WatchState
 from anical.domain.playback import Outcome
 from anical.ui.calendar_view import CalendarView
 from anical.ui.display import DisplaySettings
@@ -18,6 +19,7 @@ from anical.ui.library_view import LibraryView
 from anical.ui.pick_dialog import PickDialog
 from anical.ui.playback_controller import PlaybackController, PlaybackReport
 from anical.ui.playback_dialog import PlaybackSettingsDialog
+from anical.ui.playing_popup import PlayingPopup
 from anical.ui.show_page import ShowPage
 from anical.ui.sync_controller import RefreshResult, SyncController
 
@@ -101,7 +103,10 @@ class MainWindow(Adw.ApplicationWindow):
         self._nav.add(self._main_page)
         # Watched counts and edits made on a show page show up on return.
         self._nav.connect("popped", lambda *_: self.library_changed())
-        self._toasts = Adw.ToastOverlay(child=self._nav)
+        self._playing = PlayingPopup()
+        overlay = Gtk.Overlay(child=self._nav)
+        overlay.add_overlay(self._playing)
+        self._toasts = Adw.ToastOverlay(child=overlay)
         self.set_content(self._toasts)
 
         narrow = Adw.Breakpoint.new(Adw.BreakpointCondition.parse("max-width: 600sp"))
@@ -146,11 +151,24 @@ class MainWindow(Adw.ApplicationWindow):
         self._stack.set_visible_child_name("calendar")
         self.calendar_view.show_mode("unwatched")
 
+    def next_episode(self, anime_id: int) -> Episode | None:
+        """The episode Play starts for a show: see EpisodeList.next_to_play."""
+        airings = self.schedule.episode_airings(anime_id)
+        airs_at = {episode_id: airing.airs_at for episode_id, airing in airings.items()}
+        return self.repository.episodes(anime_id).next_to_play(airs_at, int(time.time()))
+
+    def play_show(self, anime_id: int) -> None:
+        """Play a show's next episode (double-clicking it in a list)."""
+        if episode := self.next_episode(anime_id):
+            self.play_episode(episode.id)
+        else:
+            self.toast("Nothing to play: every aired episode is watched")
+
     def play_episode(self, episode_id: int) -> None:
         if problem := self.playback.play(episode_id):
             self.toast(problem)
         elif self.playback.playing:  # ani-cli; an opened link or command reports straight away
-            self.toast(f"Opening {self.playback.playing} in ani-cli…")
+            self._playing.present(self.playback.playing)
 
     def open_playback_settings(self, anime_id: int) -> None:
         anime = self.repository.get_anime(anime_id)
@@ -158,6 +176,7 @@ class MainWindow(Adw.ApplicationWindow):
         PlaybackSettingsDialog(self.playback_repository, anime, mapping, on_saved=self.library_changed).present(self)
 
     def _on_playback_finished(self, _controller, report: PlaybackReport) -> None:
+        self._playing.dismiss()
         result = report.result
 
         def mark_watched() -> None:

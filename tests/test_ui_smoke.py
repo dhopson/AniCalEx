@@ -661,3 +661,62 @@ def test_required_programs_add_git_bash_on_windows(playback, monkeypatch):
     programs = playback.required_programs()
     assert [p.name for p in programs] == ["Git Bash", "ani-cli", "mpv"]  # Git Bash first: ani-cli runs in it
     assert [p.install_key for p in programs] == ["git", "ani-cli", "mpv"]  # what the install scripts accept
+
+
+def test_double_click_plays_and_a_single_click_still_opens(monkeypatch):
+    from anical.ui.gestures import on_double_click
+
+    monkeypatch.setattr(Gtk.Settings.get_default().props, "gtk_double_click_time", 10)
+    box = Gtk.ListBox()
+    row = Adw.ActionRow(title="Show", activatable=True)
+    box.append(row)
+    window = Gtk.Window(child=box)
+    opened, played = [], []
+    row.connect("activated", lambda *_: opened.append(1))
+    gesture = on_double_click(row, lambda: played.append(1))
+
+    gesture.emit("pressed", 1, 0.0, 0.0)
+    gesture.emit("released", 1, 0.0, 0.0)
+    gesture.emit("pressed", 2, 0.0, 0.0)  # within the double-click time: play, don't open
+    gesture.emit("released", 2, 0.0, 0.0)
+    GLib.usleep(30_000)
+    drain()
+    assert played == [1] and opened == []
+
+    gesture.emit("pressed", 1, 0.0, 0.0)
+    gesture.emit("released", 1, 0.0, 0.0)
+    wait_until(lambda: opened)  # a single click opens, once the double-click time has passed
+    assert played == [1]
+    window.destroy()
+
+
+def test_theatre_sheet_matches_its_layout():
+    from gi.repository import Gdk
+
+    from anical.ui import playing_popup
+
+    sheet = Gdk.Texture.new_from_filename(str(playing_popup.theatre_path()))
+    rows = -(-playing_popup.FRAMES // playing_popup.COLUMNS)
+    assert (sheet.get_width(), sheet.get_height()) == (
+        playing_popup.COLUMNS * playing_popup.FRAME_W,
+        rows * playing_popup.FRAME_H,
+    )
+
+
+@launches_ani_cli
+def test_play_show_plays_the_next_episode_with_the_playing_card(window, repo, monkeypatch):
+    monkeypatch.setenv("FAKE_PROGRESS", '{"reason":"eof"}')
+    anime_id, episode = first_episode(repo)
+    window.play_show(anime_id)
+    assert window._playing.showing and "Episode 1" in window._playing._episode.get_label()
+    wait_until(lambda: window.playback.playing is None, timeout=15)
+    drain()
+    assert not window._playing.showing  # hidden once playback ends
+    assert repo.watch_state(episode.id) is WatchState.WATCHED
+
+
+def test_play_show_with_nothing_left_to_play(window, repo):
+    anime_id, _ = first_episode(repo)
+    repo.set_watch_state([e.id for e in repo.episodes(anime_id).episodes], WatchState.WATCHED)
+    window.play_show(anime_id)
+    assert not window._playing.showing and window.playback.playing is None

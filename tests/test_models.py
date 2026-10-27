@@ -1,6 +1,15 @@
 import pytest
 
-from anical.domain.models import AnimeDraft, AnimeSummary, ValidationError, WatchProgress
+from anical.domain.models import (
+    AnimeDraft,
+    AnimeSummary,
+    Episode,
+    EpisodeKind,
+    EpisodeList,
+    ValidationError,
+    WatchProgress,
+    WatchState,
+)
 
 
 def errors_for(**fields):
@@ -56,3 +65,18 @@ def test_progress_classification():
     assert AnimeSummary(**base, total_episodes=12, watched_count=12).progress is WatchProgress.FINISHED
     # Unknown length can never be "finished".
     assert AnimeSummary(**base, watched_count=12).progress is WatchProgress.IN_PROGRESS
+
+
+def test_next_to_play_is_the_first_aired_unwatched_numbered_episode():
+    episodes = EpisodeList(
+        [
+            Episode(1, 9, 1, state=WatchState.WATCHED),
+            Episode(2, 9, 1, kind=EpisodeKind.SPECIAL),
+            Episode(3, 9, 2),
+            Episode(4, 9, 3),
+        ]
+    )
+    assert episodes.next_to_play({}, now=100).id == 3  # no airing times known: playable
+    assert episodes.next_to_play({3: 50}, now=100).id == 3
+    assert episodes.next_to_play({3: 150, 4: 160}, now=100) is None  # not aired yet
+    assert EpisodeList([Episode(1, 9, 1, state=WatchState.WATCHED)]).next_to_play({}, now=100) is None

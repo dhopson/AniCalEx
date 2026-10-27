@@ -3,7 +3,9 @@
   "licenses": {
     "Z-Image Turbo": "Apache-2.0",
     "Qwen-Image-Edit-2511": "Apache-2.0",
-    "BiRefNet": "MIT"
+    "BiRefNet": "MIT",
+    "Wan 2.2 I2V 14B": "Apache-2.0",
+    "Wan 2.2 lightx2v 4-step LoRAs": "Apache-2.0"
   },
   "base": {
     "model": "z_image_turbo_bf16 (+ qwen_3_4b, ae)",
@@ -39,6 +41,28 @@
     "anical/data/setup/mascot-done.png": {
       "prompt": "Make her jump for joy with both arms raised high above her head, celebrating, with small colourful sparkles around her. Make her eyes happy closed curved arcs. Keep the same mascot costume exactly: the same oversized square plush calendar-page head with red header and two silver rings, the same face, the same form-fitting cream felt bodysuit with red trim, red gloves and red boots, the same body shape. Plain flat light grey background, full body visible, no text.",
       "seed": 1
+    }
+  },
+  "playing": {
+    "anical/data/playing/theatre.jpg": {
+      "about": "The animation on the Playing episode card: a sprite sheet of 48 frames (480x332, 8 per row), played at 16 fps. The still is a Qwen-Image-Edit-2511 edit of the base image (placed at 760 px tall, x 120, y 50 on a 1216x832 light grey canvas; background kept, no background removal). The loop is Wan 2.2 image-to-video at 832x576, 49 frames, first-last-frame with the still as both ends; frames 0-47 are used, since frame 48 repeats frame 0.",
+      "still": {
+        "model": "qwen_image_edit_2511_fp8mixed + Qwen-Image-Edit-2511-Lightning-4steps-V1.0 (4 steps, CFG 1, shift 3.1)",
+        "prompt": "Put her in a cozy dark home theatre, sitting comfortably in a plush red velvet theatre seat on the left, seen from a three-quarter front angle so her whole face is visible, her body turned towards the right, holding a red and white striped popcorn bucket in her lap with one hand and lifting a piece of popcorn to her mouth with the other, happily watching. On the right, a chunky 1980s wood-grain CRT television set with rabbit-ear antennas on a low stand, angled towards her, its curved screen glowing bright blue and lighting her face softly. Dim warm room, cosy. Keep the same mascot costume exactly: the same oversized square plush calendar-page head with red header and two silver rings, the same face with big sparkly purple eyes and pink cheeks, the same form-fitting cream felt bodysuit with red trim, red gloves and red boots, the same body shape. One mascot only, no text.",
+        "seed": 12
+      },
+      "animation": {
+        "model": "wan2.2_i2v_high/low_noise_14B_fp8_scaled + wan2.2_i2v_lightx2v_4steps LoRAs (4 steps, split 2, CFG 1, shift 5, euler/simple), umt5_xxl_fp8_e4m3fn_scaled, wan_2.1_vae",
+        "prompt": "The mascot sits in the theatre seat eating popcorn while watching TV: she lowers her gloved hand into the striped popcorn bucket, picks up popcorn, brings it to her mouth and munches happily, her big plush head bobbing gently. The old TV screen flickers softly, its blue glow pulsing on her. Static camera, the room stays the same, gentle cosy motion.",
+        "negative": "static, frozen, blurry, low quality, jpeg artifacts, extra limbs, deformed, camera movement, zoom, background change, scene change, text, watermark",
+        "seed": 1,
+        "frames": 49,
+        "size": [
+          832,
+          576
+        ]
+      },
+      "sheet": "frames resized to 480x332 (Lanczos), JPEG quality 80"
     }
   }
 }
