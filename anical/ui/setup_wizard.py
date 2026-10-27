@@ -91,7 +91,7 @@ class SetupWizard(Adw.Dialog):
         runtime_dir: Path,
         on_finished: Callable[[], None] = lambda: None,
     ):
-        super().__init__(title="Set Up AniCal", content_width=780, content_height=560)
+        super().__init__(title="Set Up AniCal", content_width=780, content_height=600)
         self._sync = sync_controller
         self._playback = playback
         self._settings = settings
@@ -163,7 +163,8 @@ class SetupWizard(Adw.Dialog):
         content.set_margin_top(12)
         content.set_margin_bottom(12)
         page = Gtk.Box(spacing=24, margin_start=24, margin_end=24, margin_top=12, margin_bottom=12)
-        page.append(side)
+        # Clamped: given more height, a wrapping label asks to be wider.
+        page.append(Adw.Clamp(child=side, maximum_size=260, tightening_threshold=260, hexpand=False))
         page.append(scroller)
         return page
 
@@ -202,8 +203,7 @@ class SetupWizard(Adw.Dialog):
         box.append(_label("Get a MyAnimeList Client ID", "title-2"))
         box.append(
             _label(
-                "MyAnimeList only answers apps it knows. Registering AniCal under your account gives it a client ID. "
-                "It's free, and AniCal only ever reads your list."
+                "MyAnimeList only answers registered apps. Registering AniCal is free, and AniCal only ever reads your list."
             )
         )
 
@@ -214,7 +214,7 @@ class SetupWizard(Adw.Dialog):
         )
         box.append(open_page)
 
-        box.append(_label("2. Fill in the form. These two must be exactly:", "heading"))
+        box.append(_label("2. Fill in the form. Any App Name works, but these two must be exact:", "heading"))
         fields = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
         for title, value in (("App Type", "other"), ("App Redirect URL", REDIRECT_URI)):
             row = Adw.ActionRow(title=title, subtitle=value, subtitle_selectable=True, use_markup=False)
@@ -227,7 +227,6 @@ class SetupWizard(Adw.Dialog):
             row.add_suffix(copy)
             fields.append(row)
         box.append(fields)
-        box.append(_label("Anything works for the other fields, for example App Name “AniCal”.", "dim-label"))
 
         box.append(_label("3. Copy the Client ID it shows you, and paste it here:", "heading"))
         entry_list = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)

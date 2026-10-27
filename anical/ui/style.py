@@ -81,14 +81,18 @@ button.cal-cell.compact { min-height: 44px; }
   padding: 14px 16px;
   box-shadow: 0 1px 3px color-mix(in srgb, black 18%, transparent);
 }
-/* A square turned 45°, half hidden under the bubble: a point toward Koyomi. */
+/* A triangle under the bubble, pointing down at Koyomi: two half-squares cut on
+   the diagonal. GTK ignores negative margins, so it can't overlap the bubble. */
 .wizard-bubble-tail {
-  min-width: 16px;
-  min-height: 16px;
-  background-color: var(--card-bg-color);
+  min-width: 20px;
+  min-height: 10px;
   margin-left: 70px;
-  margin-top: -9px;
-  transform: rotate(45deg);
+  background-image:
+    linear-gradient(to top right, transparent 50%, var(--card-bg-color) 50%),
+    linear-gradient(to top left, transparent 50%, var(--card-bg-color) 50%);
+  background-size: 10px 10px, 10px 10px;
+  background-position: left top, right top;
+  background-repeat: no-repeat;
 }
 .wizard-step-dot { min-width: 8px; min-height: 8px; border-radius: 4px; background-color: color-mix(in srgb, currentColor 20%, transparent); }
 .wizard-step-dot.current { background-color: var(--accent-bg-color); min-width: 20px; }
