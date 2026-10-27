@@ -1,11 +1,11 @@
 # Builds AniCal from this source checkout:  cd packaging && makepkg -si
 pkgname=anical
 pkgver=0.1.0
-pkgrel=2
-pkgdesc="Anime library and airing calendar for GNOME, with ani-cli playback"
+pkgrel=3
+pkgdesc="Anime library and airing calendar, with ani-cli playback"
 arch=('any')
 license=('MIT')
-depends=('python' 'python-gobject' 'gtk4' 'libadwaita>=1:1.7' 'libsecret')
+depends=('python' 'python-gobject' 'gtk4' 'libadwaita>=1:1.8' 'libsecret')
 makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
 optdepends=('ani-cli: play episodes'
             'mpv: track how far you watched')
