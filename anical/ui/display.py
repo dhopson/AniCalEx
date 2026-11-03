@@ -10,6 +10,7 @@ from gi.repository import Gio, GObject
 from anical.db.settings import (
     AVAILABILITY_LAG_HOURS,
     DISPLAY_ENGLISH_TITLES,
+    DISPLAY_PLAYING_SIZE,
     DISPLAY_TIMEZONE,
     DISPLAY_WEEK_START,
     SettingsRepository,
@@ -18,6 +19,7 @@ from anical.domain.calendar import DEFAULT_AVAILABILITY_LAG_S
 from anical.platform.timezone import system_timezone_name
 
 _GNOME_INTERFACE = "org.gnome.desktop.interface"
+PLAYING_SIZES = ("small", "large")
 
 
 class DisplaySettings(GObject.Object):
@@ -62,6 +64,11 @@ class DisplaySettings(GObject.Object):
     @property
     def english_titles(self) -> bool:
         return self._settings.get(DISPLAY_ENGLISH_TITLES) is True
+
+    @property
+    def playing_size(self) -> str:
+        size = self._settings.get(DISPLAY_PLAYING_SIZE)
+        return size if size in PLAYING_SIZES else "small"
 
     @property
     def use_24h(self) -> bool:

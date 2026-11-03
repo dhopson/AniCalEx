@@ -17,6 +17,7 @@ DISPLAY_TIMEZONE = "display.timezone"  # IANA name; unset = system time zone
 DISPLAY_WEEK_START = "display.week_start"  # 0 = Monday, 6 = Sunday
 AVAILABILITY_LAG_HOURS = "schedule.availability_lag_hours"
 DISPLAY_ENGLISH_TITLES = "display.english_titles"  # calendar shows English titles when known
+DISPLAY_PLAYING_SIZE = "display.playing_size"  # the Playing episode card: "small" (default) or "large"
 PLAYBACK_EXECUTABLE = "playback.executable"
 PLAYBACK_MODE = "playback.mode"  # "sub" or "dub"
 PLAYBACK_QUALITY = "playback.quality"

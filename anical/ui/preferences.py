@@ -15,6 +15,7 @@ from anical.db.backup import BackupError, backup_to, restore_from
 from anical.db.settings import (
     AVAILABILITY_LAG_HOURS,
     DISPLAY_ENGLISH_TITLES,
+    DISPLAY_PLAYING_SIZE,
     DISPLAY_TIMEZONE,
     DISPLAY_WEEK_START,
     NOTIFICATIONS_ENABLED,
@@ -32,7 +33,7 @@ from anical.domain.playback import MODES, QUALITIES
 from anical.platform import System, current
 from anical.platform.timezone import available_timezones, system_timezone_name
 from anical.sync.mal_sync import ACCOUNT, USERNAME
-from anical.ui.display import DisplaySettings
+from anical.ui.display import PLAYING_SIZES, DisplaySettings
 from anical.ui.playback_controller import BACKENDS, PlaybackController, RequiredProgram
 from anical.ui.sync_controller import SyncController
 
@@ -216,6 +217,17 @@ class PreferencesDialog(Adw.PreferencesDialog):
         )
         auto_mark.connect("notify::active", lambda row, _p: playback.set_setting(PLAYBACK_AUTO_MARK, row.get_active()))
         options.add(auto_mark)
+        playing_size = Adw.ComboRow(
+            title="Playing Card Size",
+            subtitle="Large is centered, at up to 75% of the window.",
+            model=Gtk.StringList.new([size.capitalize() for size in PLAYING_SIZES]),
+        )
+        playing_size.set_selected(PLAYING_SIZES.index(self._display.playing_size))
+        playing_size.connect(
+            "notify::selected",
+            lambda row, _p: self._display.set(DISPLAY_PLAYING_SIZE, PLAYING_SIZES[row.get_selected()]),
+        )
+        options.add(playing_size)
         page.add(options)
 
         def show_backend() -> None:

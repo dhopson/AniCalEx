@@ -103,7 +103,7 @@ class MainWindow(Adw.ApplicationWindow):
         self._nav.add(self._main_page)
         # Watched counts and edits made on a show page show up on return.
         self._nav.connect("popped", lambda *_: self.library_changed())
-        self._playing = PlayingPopup()
+        self._playing = PlayingPopup(large=display.playing_size == "large")
         overlay = Gtk.Overlay(child=self._nav)
         overlay.add_overlay(self._playing)
         self._toasts = Adw.ToastOverlay(child=overlay)
@@ -126,6 +126,8 @@ class MainWindow(Adw.ApplicationWindow):
         ]
         self.connect("destroy", lambda *_: [sync_controller.disconnect(h) for h in handlers])
         self.connect("destroy", lambda *_: [playback.disconnect(h) for h in playback_handlers])
+        playing_size = display.connect("changed", lambda *_: self._playing.set_large(display.playing_size == "large"))
+        self.connect("destroy", lambda *_: display.disconnect(playing_size))
 
         for name, callback in (
             ("add-anime", self._on_add_anime),

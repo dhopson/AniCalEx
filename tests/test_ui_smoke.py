@@ -21,6 +21,7 @@ from anical.db.playback import PlaybackRepository
 from anical.db.schedule import ScheduleRepository
 from anical.db.settings import (
     DISPLAY_ENGLISH_TITLES,
+    DISPLAY_PLAYING_SIZE,
     DISPLAY_TIMEZONE,
     MAL_CLIENT_ID,
     MAL_MODE,
@@ -851,6 +852,72 @@ def test_catch_up_switch_saves_and_stays_visible_for_link_or_command(controller,
     assert switch.get_ancestor(Adw.PreferencesGroup.__gtype__).get_visible()
     switch.set_active(False)
     assert settings.get(PLAYBACK_CATCH_UP) is False and not playback.config.catch_up
+
+
+def test_large_scene_stops_at_whichever_side_reaches_75_percent_first():
+    from anical.ui.playing_popup import FRAME_H, FRAME_W, large_scene_size
+
+    # A very wide window: height is the limit, and the sides are left empty.
+    width, height = large_scene_size(3000, 800, 16, 100)
+    assert height + 100 <= 600 and width + 16 < 3000 * 0.75
+    assert abs(height - width * FRAME_H / FRAME_W) <= 1  # never stretched
+
+    # A very tall window: width is the limit.
+    width, height = large_scene_size(800, 3000, 16, 100)
+    assert width + 16 == 600 and height + 100 < 3000 * 0.75
+    assert abs(height - width * FRAME_H / FRAME_W) <= 1
+
+
+def test_large_scene_is_never_smaller_than_the_small_one():
+    from anical.ui.playing_popup import SCENE_HEIGHT, SCENE_WIDTH, large_scene_size
+
+    assert large_scene_size(320, 300, 16, 100) == (SCENE_WIDTH, SCENE_HEIGHT)
+
+
+def test_playing_card_goes_in_the_corner_or_large_in_the_center(window, display):
+    popup = window._playing
+    popup.present("A Show, Episode 1")
+
+    x, y, width, height = popup.card_rectangle(1200, 800)
+    assert (x + width, y + height) == (1200 - 12, 800 - 12)
+
+    display.set(DISPLAY_PLAYING_SIZE, "large")  # applies straight away, through display's changed signal
+    x, y, width, height = popup.card_rectangle(1200, 800)
+    assert abs(x - (1200 - width) / 2) <= 1 and abs(y - (800 - height) / 2) <= 1
+    assert width <= 900 and height <= 600 and (width > 800 or height > 550)
+
+    wide = popup.card_rectangle(3000, 800)
+    assert wide[3] <= 600 and wide[2] < 3000 * 0.75
+
+    display.set(DISPLAY_PLAYING_SIZE, "small")
+    assert popup.card_rectangle(1200, 800)[2] < 400
+
+
+def test_playing_size_setting_rejects_unknown_values_and_preferences_saves_it(
+    controller, display, playback, repo, settings
+):
+    settings.set(DISPLAY_PLAYING_SIZE, "enormous")
+    assert display.playing_size == "small"
+    dialog = PreferencesDialog(controller, display, playback, repo.connection, Path("/tmp"), lambda: None)
+    page = dialog._playback_page()  # held: the rows lose their parents if the page is collected
+    (row,) = [w for w in all_widgets(page) if isinstance(w, Adw.ComboRow) and w.get_title() == "Playing Card Size"]
+    row.set_selected(1)
+    assert settings.get(DISPLAY_PLAYING_SIZE) == "large" and display.playing_size == "large"
+
+
+def test_only_the_card_takes_clicks_around_the_large_card(window, display):
+    display.set(DISPLAY_PLAYING_SIZE, "large")
+    popup = window._playing
+    popup.present("A Show, Episode 1")
+    window.present()
+    wait_until(lambda: popup.get_width() > 0 and popup._card.get_mapped())
+    overlay = popup.get_parent()
+    x, y, width, height = popup.card_rectangle(popup.get_width(), popup.get_height())
+
+    in_card = overlay.pick(x + width / 2, y + height / 2, Gtk.PickFlags.DEFAULT)
+    assert in_card.is_ancestor(popup)
+    outside = overlay.pick(2.0, popup.get_height() - 2.0, Gtk.PickFlags.DEFAULT)
+    assert outside is None or not (outside is popup or outside.is_ancestor(popup))
 
 
 def all_widgets(widget):
