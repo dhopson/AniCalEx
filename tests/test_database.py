@@ -98,3 +98,22 @@ def test_schedule_migration_forces_a_refresh():
     conn.execute("INSERT INTO sync_state (key, value, updated_at) VALUES ('refresh.last_run', '1790000000', 0)")
     migrate(conn, migrations)
     assert conn.execute("SELECT COUNT(*) FROM sync_state WHERE key = 'refresh.last_run'").fetchone()[0] == 0
+
+
+def _settings_after_player_migration(prepare) -> dict[str, str]:
+    """Migrate to just before the player choice, run `prepare`, then migrate the rest."""
+    migrations = load_migrations()
+    index = next(i for i, m in enumerate(migrations) if m.name == "keep_mpv_for_existing_libraries")
+    connection = connect(":memory:")
+    migrate(connection, migrations[:index])
+    prepare(connection)
+    migrate(connection, migrations)
+    return dict(connection.execute("SELECT key, value_json FROM settings").fetchall())
+
+
+def test_existing_libraries_keep_mpv_and_new_ones_get_no_player_choice():
+    assert _settings_after_player_migration(lambda _c: None) == {}
+    upgraded = _settings_after_player_migration(
+        lambda c: c.execute("""INSERT INTO settings (key, value_json) VALUES ('setup.seen', 'true')""")
+    )
+    assert upgraded["playback.player_choice"] == '"mpv"'
