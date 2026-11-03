@@ -35,7 +35,7 @@
   <url type="homepage">https://github.com/dhopson/AniCalEx</url>
   <content_rating type="oars-1.1"/>
   <releases>
-    <release version="0.2.3" date="2026-11-03">
+    <release version="0.2.4" date="2026-11-03">
       <description>
         <p>Choose your video player: mpv, VLC or, on macOS, IINA.</p>
       </description>
