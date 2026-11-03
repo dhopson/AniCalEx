@@ -2,7 +2,7 @@
 
 AniCal is a desktop app for tracking anime on Linux, macOS and Windows. It keeps a local library of shows and which episodes you've watched, imports your MyAnimeList list, shows when new episodes air in a calendar, and plays episodes through [`ani-cli`](https://github.com/pystardust/ani-cli), or through a link or program you choose.
 
-**Status: 0.2.0.** Runs on Linux (GNOME), macOS (Apple Silicon and Intel) and Windows x64.
+**Status: 0.2.2.** Runs on Linux (GNOME), macOS (Apple Silicon and Intel) and Windows x64.
 
 ![AniCal on first launch: the setup wizard, with the mascot waving next to the welcome step](screenshots/setup-wizard.png)
 
