@@ -11,6 +11,7 @@ import base64
 import http.server
 import json
 import os
+import socketserver
 import sys
 import threading
 import time
@@ -43,7 +44,8 @@ def main():
             def log_message(self, *_args):
                 pass
 
-        server = http.server.ThreadingHTTPServer((option(args, "http-host"), int(port)), Status)
+        # Not http.server's own server: it looks up the host's name when it starts, which can stall on macOS.
+        server = socketserver.ThreadingTCPServer((option(args, "http-host"), int(port)), Status)
         threading.Thread(target=server.serve_forever, daemon=True).start()
     time.sleep(float(os.environ.get("FAKE_VLC_SECONDS", "0")))
     sys.exit(int(os.environ.get("FAKE_EXIT", "0")))

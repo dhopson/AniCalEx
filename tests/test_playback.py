@@ -199,14 +199,24 @@ def run_shim(kind, player, tmp_path, **env):
     return result.returncode, parse_progress(out.read_text()) if out.exists() else None
 
 
-FAKE_VLC = str(Path(__file__).parent / "fake_vlc.py")
+def fake_vlc(tmp_path) -> str:
+    """The fake as a program the shim can start. Windows can't start a .py file,
+    but it can start a .cmd, so the shim's VLC path is tested there too."""
+    script = Path(__file__).parent / "fake_vlc.py"
+    if os.name != "nt":
+        return str(script)
+    wrapper = tmp_path / "fake_vlc.cmd"
+    wrapper.write_text(f'@echo off\n"{sys.executable}" "{script}" %*\nexit /b %errorlevel%\n')
+    return str(wrapper)
+
+
 VLC_PLAYING = '{"state": "playing", "time": 1368, "length": 1440, "position": 0.95}'
 
 
 def test_vlc_gets_mpvs_options_translated_and_reports_progress(tmp_path):
     log = tmp_path / "vlc.jsonl"
     code, progress = run_shim(
-        "vlc", FAKE_VLC, tmp_path, FAKE_VLC_LOG=str(log), FAKE_VLC_STATUS=VLC_PLAYING, FAKE_VLC_SECONDS="1.5"
+        "vlc", fake_vlc(tmp_path), tmp_path, FAKE_VLC_LOG=str(log), FAKE_VLC_STATUS=VLC_PLAYING, FAKE_VLC_SECONDS="1.5"
     )
     assert code == 0
     assert progress == Progress("quit", 95.0, 1368.0, 1440.0)
@@ -222,22 +232,37 @@ def test_vlc_gets_mpvs_options_translated_and_reports_progress(tmp_path):
     assert not any(a.startswith(("--referrer", "--sub-file", "--force-media-title")) for a in args)
 
 
+def test_vlc_is_asked_directly_even_with_a_proxy_configured(tmp_path):
+    code, progress = run_shim(
+        "vlc",
+        fake_vlc(tmp_path),
+        tmp_path,
+        FAKE_VLC_STATUS=VLC_PLAYING,
+        FAKE_VLC_SECONDS="1.5",
+        http_proxy="http://127.0.0.1:9",
+        HTTP_PROXY="http://127.0.0.1:9",
+        no_proxy="",
+        NO_PROXY="",
+    )
+    assert code == 0 and progress == Progress("quit", 95.0, 1368.0, 1440.0)
+
+
 def test_a_last_reading_near_the_end_counts_as_played_to_the_end(tmp_path):
     # Readings are half a second apart, which is a lot of a short video.
     status = '{"state": "playing", "time": 4, "length": 6, "position": 0.7}'
-    code, progress = run_shim("vlc", FAKE_VLC, tmp_path, FAKE_VLC_STATUS=status, FAKE_VLC_SECONDS="1.5")
+    code, progress = run_shim("vlc", fake_vlc(tmp_path), tmp_path, FAKE_VLC_STATUS=status, FAKE_VLC_SECONDS="1.5")
     assert progress.reason == "eof" and decide(code, progress, "").outcome is Outcome.WATCHED
 
 
 def test_vlc_that_never_played_is_a_failure(tmp_path):
     status = '{"state": "stopped", "time": 0, "length": 0, "position": 0}'
-    code, progress = run_shim("vlc", FAKE_VLC, tmp_path, FAKE_VLC_STATUS=status, FAKE_VLC_SECONDS="1.5")
+    code, progress = run_shim("vlc", fake_vlc(tmp_path), tmp_path, FAKE_VLC_STATUS=status, FAKE_VLC_SECONDS="1.5")
     assert decide(code, progress, "").outcome is Outcome.FAILED
 
 
 def test_vlc_without_a_web_interface_still_plays_and_the_user_is_asked(tmp_path):
     log = tmp_path / "vlc.jsonl"
-    code, progress = run_shim("vlc", FAKE_VLC, tmp_path, FAKE_VLC_LOG=str(log), FAKE_VLC_NO_HTTP="1")
+    code, progress = run_shim("vlc", fake_vlc(tmp_path), tmp_path, FAKE_VLC_LOG=str(log), FAKE_VLC_NO_HTTP="1")
     assert code == 0 and progress is None
     assert decide(code, progress, "").outcome is Outcome.UNKNOWN
     first, second = (json.loads(line) for line in log.read_text().splitlines())
@@ -246,7 +271,7 @@ def test_vlc_without_a_web_interface_still_plays_and_the_user_is_asked(tmp_path)
 
 
 def test_vlc_that_ends_at_once_couldnt_open_the_stream(tmp_path):
-    code, progress = run_shim("vlc", FAKE_VLC, tmp_path, FAKE_VLC_SILENT="1", FAKE_VLC_SECONDS="0.2")
+    code, progress = run_shim("vlc", fake_vlc(tmp_path), tmp_path, FAKE_VLC_SILENT="1", FAKE_VLC_SECONDS="0.2")
     assert code == 0  # as real VLC does for a stream it can't open
     assert decide(code, progress, "").outcome is Outcome.FAILED
 

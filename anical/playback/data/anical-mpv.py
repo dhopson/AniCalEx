@@ -111,10 +111,12 @@ def vlc_sampler(port, password):
     request = urllib.request.Request(
         f"http://127.0.0.1:{port}/requests/status.json", headers={"Authorization": f"Basic {token}"}
     )
+    # Direct, whatever the system's proxy settings: a proxy can't reach this computer's loopback.
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def sample():
         try:
-            with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as response:
+            with opener.open(request, timeout=REQUEST_TIMEOUT_S) as response:
                 status = json.load(response)
             return float(status["position"]) * 100, float(status["time"]), float(status["length"])
         except (OSError, ValueError, KeyError, TypeError):
