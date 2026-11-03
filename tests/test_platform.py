@@ -136,7 +136,8 @@ def test_keychain_errors_become_token_store_errors():
 
 # Finding ani-cli, mpv and Git Bash
 
-from anical.platform.anicli import find_ani_cli, find_bash, find_player
+from anical.domain.playback import Player
+from anical.platform.anicli import find_ani_cli, find_bash, find_player, players
 
 
 def touch(path: Path) -> Path:
@@ -173,6 +174,37 @@ def test_a_setting_wins_and_must_exist(tmp_path):
     assert find_ani_cli(str(custom), System.WINDOWS, tmp_path, nowhere) == str(custom)
     assert find_ani_cli(str(tmp_path / "missing"), System.LINUX, tmp_path, lambda n: "/usr/bin/ani-cli") is None
     assert find_player("mpv.com", System.WINDOWS, tmp_path, lambda n: f"C:/bin/{n}") == "C:/bin/mpv.com"
+
+
+def test_each_system_suggests_its_own_player_and_iina_is_only_on_macos():
+    assert players(System.LINUX) == (Player.MPV, Player.VLC)
+    assert players(System.MACOS) == (Player.IINA, Player.MPV, Player.VLC)
+    assert players(System.WINDOWS) == (Player.VLC, Player.MPV)
+
+
+def test_windows_finds_vlc_from_its_installer_or_scoop(tmp_path):
+    program_files = tmp_path / "Program Files (x86)"
+    env = {"ProgramFiles": str(tmp_path / "Program Files"), "ProgramFiles(x86)": str(program_files)}
+    find = lambda: find_player(None, System.WINDOWS, tmp_path, nowhere, Player.VLC, env)  # noqa: E731 (three uses)
+    assert find() is None
+    installed = touch(program_files / "VideoLAN" / "VLC" / "vlc.exe")
+    assert find() == str(installed)
+    scoop = touch(tmp_path / "scoop" / "apps" / "vlc" / "current" / "vlc.exe")
+    assert find() == str(scoop)
+
+
+def test_macos_finds_vlc_and_iina_inside_their_apps(tmp_path):
+    vlc = touch(tmp_path / "Applications" / "VLC.app" / "Contents" / "MacOS" / "VLC")
+    iina = touch(tmp_path / "Applications" / "IINA.app" / "Contents" / "MacOS" / "iina-cli")
+    assert find_player(None, System.MACOS, tmp_path, nowhere, Player.VLC) == str(vlc)
+    assert find_player(None, System.MACOS, tmp_path, nowhere, Player.IINA) == str(iina)
+    assert find_player(None, System.MACOS, tmp_path, lambda n: f"/bin/{n}", Player.IINA) == "/bin/iina"
+
+
+def test_linux_finds_vlc_on_path_and_a_setting_wins(tmp_path):
+    assert find_player(None, System.LINUX, tmp_path, lambda n: f"/usr/bin/{n}", Player.VLC) == "/usr/bin/vlc"
+    custom = touch(tmp_path / "my vlc")
+    assert find_player(str(custom), System.LINUX, tmp_path, nowhere, Player.VLC) == str(custom)
 
 
 def test_git_bash_search_order(tmp_path):

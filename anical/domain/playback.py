@@ -10,9 +10,10 @@ How a launch works (verified against ani-cli 5.1.0 and 5.1.6):
     "N Title" lines and answers with the chosen line (only consulted when
     the search returns more than one result).
   - ANI_CLI_PLAYER=anical-mpv. ani-cli treats any player whose name contains
-    "mpv" as mpv, so the shim gets mpv's options and starts the real mpv
-    with a small script that records how far playback got and why it ended
-    ("eof" or "quit"), because mpv exits 0 for both.
+    "mpv" as mpv and waits for it, so the shim gets mpv's options whichever
+    player the user chose, and starts that player with them translated. It
+    records how far playback got and why it ended, because players exit 0 for
+    both finishing and quitting.
 
 An episode is never marked watched just because it was launched.
 """
@@ -43,11 +44,24 @@ class PlaybackError(Exception):
     """A launch could not be prepared (missing ani-cli, unusable paths)."""
 
 
+class Player(StrEnum):
+    """The video players ani-cli can play through. Which ones a system offers
+    is in `anical.platform.anicli`."""
+
+    MPV = "mpv"
+    VLC = "vlc"
+    IINA = "iina"
+
+    @property
+    def label(self) -> str:
+        return "mpv" if self is Player.MPV else self.value.upper()
+
+
 class Outcome(StrEnum):
     WATCHED = "watched"  # reached the end or the threshold
     OPENED = "opened"  # handed to a link or command; AniCal can't follow it
     PARTIAL = "partial"  # stopped partway
-    UNKNOWN = "unknown"  # played, but the player reported no progress (not mpv)
+    UNKNOWN = "unknown"  # played, but the player reported no progress
     EPISODE_NOT_FOUND = "episode_not_found"
     SHOW_NOT_FOUND = "show_not_found"
     CANCELLED = "cancelled"
@@ -80,7 +94,8 @@ class PlaybackConfig:
     mode: str = "sub"
     quality: str = "best"
     auto_mark: bool = True
-    player: str = "mpv"
+    player: str = "mpv"  # the program to start
+    player_kind: Player = Player.MPV
     bash: str | None = None  # Windows: Git for Windows' bash.exe
     catch_up: bool = True
 
@@ -154,7 +169,8 @@ def build_launch(
         "PATH": os.pathsep.join(p for p in (str(helpers), base_path) if p),
         "ANI_CLI_MENU": "anical-pick",
         "ANI_CLI_PLAYER": "anical-mpv",
-        "ANICAL_MPV": config.player,
+        "ANICAL_PLAYER": config.player,
+        "ANICAL_PLAYER_KIND": config.player_kind.value,
         "ANICAL_PROGRESS_SCRIPT": str(progress_script),
         "ANICAL_PROGRESS_OUT": str(progress_path),
         "ANICAL_PICK_DIR": str(session_dir),
@@ -249,7 +265,7 @@ def decide(exit_code: int, progress: Progress | None, stderr: str) -> PlaybackRe
         if "Invalid anime selection" in message:
             return PlaybackResult(Outcome.CANCELLED, message=message)
     if exit_code == 0:
-        # Ran to completion without the mpv reporter (e.g. VLC): progress is unknown.
+        # Ran to completion and the player reported nothing: progress is unknown.
         return PlaybackResult(Outcome.UNKNOWN)
     return PlaybackResult(Outcome.FAILED, message=message or f"ani-cli exited with status {exit_code}")
 

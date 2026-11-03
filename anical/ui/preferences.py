@@ -21,12 +21,10 @@ from anical.db.settings import (
     NOTIFICATIONS_ENABLED,
     PLAYBACK_AUTO_MARK,
     PLAYBACK_BACKEND,
-    PLAYBACK_BASH,
     PLAYBACK_CATCH_UP,
-    PLAYBACK_EXECUTABLE,
     PLAYBACK_EXTERNAL,
     PLAYBACK_MODE,
-    PLAYBACK_PLAYER,
+    PLAYBACK_PLAYER_CHOICE,
     PLAYBACK_QUALITY,
 )
 from anical.domain.playback import MODES, QUALITIES
@@ -43,14 +41,18 @@ _INSTALL_HINTS = {
     System.LINUX: {
         "ani-cli": "Install ani-cli, or enter the full path to it",
         "mpv": "Install mpv, or enter the full path to it",
+        "vlc": "Install VLC, or enter the full path to it",
     },
     System.MACOS: {
         "ani-cli": "Install it from ani-cli’s Homebrew tap (see the README), or enter the full path to it",
         "mpv": "Install it with Homebrew (brew install mpv), or enter the full path to it",
+        "vlc": "Install it with Homebrew (brew install --cask vlc), or enter the full path to it",
+        "iina": "Install it with Homebrew (brew install --cask iina), or enter the full path to iina-cli",
     },
     System.WINDOWS: {
         "ani-cli": "Install it with scoop (scoop install ani-cli), or enter the path to the ani-cli script",
         "mpv": "Install it with scoop (scoop install mpv), or enter the path to mpv.exe",
+        "vlc": "Install it from videolan.org, or enter the path to vlc.exe",
         "git": "Install Git for Windows, or enter the path to bash.exe",
     },
 }
@@ -169,14 +171,14 @@ class PreferencesDialog(Adw.PreferencesDialog):
         programs = Adw.PreferencesGroup(
             title="ani-cli",
             description=(
-                "AniCal starts ani-cli, which plays in mpv. Leave a field empty to find the program automatically."
+                "AniCal starts ani-cli, which plays in the video player you choose. "
+                "Leave a location empty to find the program automatically."
             ),
         )
-        chosen = {PLAYBACK_EXECUTABLE: config.executable, PLAYBACK_PLAYER: config.player, PLAYBACK_BASH: config.bash}
+        hints = _INSTALL_HINTS[system]
         for program in playback.required_programs():
-            self._program_row(
-                programs, program, chosen[program.setting] or "", _INSTALL_HINTS[system][program.install_key]
-            )
+            self._program_row(programs, program, hints[program.install_key])
+        self._player_rows(programs, hints)
         page.add(programs)
 
         external = Adw.PreferencesGroup(
@@ -194,7 +196,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
 
         options = Adw.PreferencesGroup(
             title="Episodes",
-            description="mpv reports how far you watched, so finished episodes can be marked automatically.",
+            description="AniCal follows how far you watched, so finished episodes can be marked automatically.",
         )
         mode = Adw.ComboRow(title="Audio", model=Gtk.StringList.new(["Subtitled", "Dubbed"]))
         mode.set_selected(MODES.index(config.mode))
@@ -244,11 +246,36 @@ class PreferencesDialog(Adw.PreferencesDialog):
         show_backend()
         return page
 
-    def _program_row(self, group, program: RequiredProgram, current_value: str, hint: str) -> None:
+    def _player_rows(self, group, hints: dict[str, str]) -> None:
+        """A choice of video player, plus the location rows of the chosen one."""
+        playback = self._playback
+        programs = playback.player_programs()
+        row = Adw.ComboRow(
+            title="Video Player",
+            subtitle=f"{playback.suggested_player.label} is recommended on this system.",
+            model=Gtk.StringList.new([program.name for program in programs]),
+        )
+        keys = [program.install_key for program in programs]
+        row.set_selected(keys.index(playback.chosen_player.value))
+        group.add(row)
+        locations = [self._program_row(group, program, hints[program.install_key]) for program in programs]
+
+        def show_location() -> None:
+            for index, rows in enumerate(locations):
+                for location_row in rows:
+                    location_row.set_visible(index == row.get_selected())
+
+        def choose(*_) -> None:
+            playback.set_setting(PLAYBACK_PLAYER_CHOICE, keys[row.get_selected()])
+            show_location()
+
+        row.connect("notify::selected", choose)
+        show_location()
+
+    def _program_row(self, group, program: RequiredProgram, hint: str) -> tuple[Adw.EntryRow, Adw.ActionRow]:
         """An entry for a program's location plus a row saying where it was found."""
         name = program.name
-        text = "" if current_value in ("ani-cli", "mpv") else current_value
-        entry = Adw.EntryRow(title=f"{name} Location", show_apply_button=True, text=text)
+        entry = Adw.EntryRow(title=f"{name} Location", show_apply_button=True, text=self._playback.location(program))
         status = Adw.ActionRow(use_markup=False)
 
         def update() -> None:
@@ -264,6 +291,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
         update()
         group.add(entry)
         group.add(status)
+        return entry, status
 
     def _data_page(self) -> Adw.PreferencesPage:
         page = Adw.PreferencesPage(title="Data", icon_name="drive-harddisk-symbolic")

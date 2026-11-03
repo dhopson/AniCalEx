@@ -3,6 +3,7 @@
 import json
 import os
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -30,7 +31,8 @@ from anical.db.settings import (
     PLAYBACK_BACKEND,
     PLAYBACK_CATCH_UP,
     PLAYBACK_EXECUTABLE,
-    PLAYBACK_PLAYER,
+    PLAYBACK_PLAYER_CHOICE,
+    PLAYBACK_PLAYER_PATHS,
     SettingsRepository,
 )
 from anical.domain.models import AiringStatus, AnimeDraft, WatchState
@@ -93,7 +95,8 @@ def display(settings):
 @pytest.fixture
 def playback(repo, settings, display, conn, tmp_path):
     settings.set(PLAYBACK_EXECUTABLE, str(Path(__file__).parent / "fake_ani_cli.py"))
-    settings.set(PLAYBACK_PLAYER, str(Path(__file__).parent / "fake_mpv.py"))
+    settings.set(PLAYBACK_PLAYER_PATHS["mpv"], str(Path(__file__).parent / "fake_mpv.py"))
+    settings.set(PLAYBACK_PLAYER_CHOICE, "mpv")
     return PlaybackController(repo, PlaybackRepository(conn), settings, display, tmp_path / "run")
 
 
@@ -642,16 +645,82 @@ def test_wizard_playback_step_checks_and_installs(wizard_parts, playback, settin
     make, _ = wizard_parts
     wizard = make()
     wizard.go_to(4)
-    assert all(p.found for p in wizard._programs)  # the fixtures' fake ani-cli and mpv
+    assert wizard._all_found  # the fixtures' fake ani-cli and mpv
     assert "All set" in wizard._bubbles["playback"].get_label()
 
-    settings.set(PLAYBACK_PLAYER, "/nonexistent/mpv")
+    settings.set(PLAYBACK_PLAYER_PATHS["mpv"], "/nonexistent/mpv")
     wizard._recheck()
-    mpv = next(p for p in wizard._programs if p.name == "mpv")
+    mpv = next(p for p in wizard._players if p.install_key == "mpv")
     assert not mpv.found and mpv.install.get_visible()
-    assert "Let’s make sure" in wizard._bubbles["playback"].get_label()
+    assert "Last one" in wizard._bubbles["playback"].get_label()
     mpv.install.emit("clicked")
     assert opened == [["mpv"]]
+
+
+def test_wizard_suggests_the_systems_player_and_saves_a_choice(wizard_parts, playback, settings, monkeypatch):
+    import anical.platform.anicli as anicli
+    from anical.domain.playback import Player
+    from anical.platform import System
+
+    monkeypatch.setattr(anicli, "current", lambda: System.MACOS)
+    settings.set(PLAYBACK_PLAYER_CHOICE, None)
+    for key in PLAYBACK_PLAYER_PATHS.values():
+        settings.set(key, "/nonexistent/player")
+    make, _ = wizard_parts
+    wizard = make()
+    wizard.go_to(4)
+
+    assert [p.name for p in wizard._players] == ["IINA", "mpv", "VLC"]
+    assert wizard._players[0].row.get_title() == "IINA (Recommended)"
+    assert playback.chosen_player is Player.IINA  # none is installed: the suggestion
+    assert wizard._players[0].choice.get_active()
+    assert settings.get(PLAYBACK_PLAYER_CHOICE) is None  # showing it isn't choosing it
+    assert "IINA" in wizard._bubbles["playback"].get_label()
+
+    wizard._players[2].choice.set_active(True)
+    assert settings.get(PLAYBACK_PLAYER_CHOICE) == "vlc"
+    assert playback.chosen_player is Player.VLC
+    assert wizard._players[2].choice.get_active()
+
+
+def test_without_a_choice_the_first_installed_player_is_used(playback, settings, tmp_path, monkeypatch):
+    import anical.platform.anicli as anicli
+    from anical.domain.playback import Player
+    from anical.platform import System
+
+    monkeypatch.setattr(anicli, "current", lambda: System.WINDOWS)
+    settings.set(PLAYBACK_PLAYER_CHOICE, None)
+    settings.set(PLAYBACK_PLAYER_PATHS["vlc"], "/nonexistent/vlc.exe")
+    assert playback.chosen_player is Player.MPV  # VLC is suggested here, but only mpv is installed
+    vlc = tmp_path / "vlc.exe"
+    vlc.touch()
+    settings.set(PLAYBACK_PLAYER_PATHS["vlc"], str(vlc))
+    assert playback.chosen_player is Player.VLC
+    settings.set(PLAYBACK_PLAYER_CHOICE, "iina")  # from a Mac's backup: Windows doesn't offer it
+    assert playback.chosen_player is Player.VLC
+    settings.set(PLAYBACK_PLAYER_CHOICE, "mpv")
+    assert playback.chosen_player is Player.MPV
+
+
+def test_preferences_shows_the_location_of_the_chosen_player(
+    controller, display, playback, repo, settings, monkeypatch
+):
+    import anical.platform.anicli as anicli
+    from anical.platform import System
+
+    monkeypatch.setattr(anicli, "current", lambda: System.LINUX)
+    dialog = PreferencesDialog(controller, display, playback, repo.connection, Path("/tmp"), lambda: None)
+    rows = []
+    group = SimpleNamespace(add=rows.append)
+    dialog._player_rows(group, {"mpv": "", "vlc": ""})
+    choice, mpv_entry, mpv_status, vlc_entry, vlc_status = rows
+    assert choice.get_selected() == 0
+    assert mpv_entry.get_visible() and mpv_status.get_visible()
+    assert not vlc_entry.get_visible() and not vlc_status.get_visible()
+    assert "mpv is recommended" in choice.get_subtitle()
+    choice.set_selected(1)
+    assert settings.get(PLAYBACK_PLAYER_CHOICE) == "vlc"
+    assert vlc_entry.get_visible() and not mpv_entry.get_visible()
 
 
 def test_required_programs_add_git_bash_on_windows(playback, monkeypatch):
@@ -659,11 +728,11 @@ def test_required_programs_add_git_bash_on_windows(playback, monkeypatch):
     from anical.platform import System
 
     monkeypatch.setattr(playback_controller, "current", lambda: System.LINUX)  # whatever system runs the tests
-    assert [p.name for p in playback.required_programs()] == ["ani-cli", "mpv"]
+    assert [p.name for p in playback.required_programs()] == ["ani-cli"]
     monkeypatch.setattr(playback_controller, "current", lambda: System.WINDOWS)
     programs = playback.required_programs()
-    assert [p.name for p in programs] == ["Git Bash", "ani-cli", "mpv"]  # Git Bash first: ani-cli runs in it
-    assert [p.install_key for p in programs] == ["git", "ani-cli", "mpv"]  # what the install scripts accept
+    assert [p.name for p in programs] == ["Git Bash", "ani-cli"]  # Git Bash first: ani-cli runs in it
+    assert [p.install_key for p in programs] == ["git", "ani-cli"]  # what the install scripts accept
 
 
 def test_double_click_plays_and_a_single_click_still_opens(monkeypatch):

@@ -25,7 +25,9 @@ PLAYBACK_AUTO_MARK = "playback.auto_mark"  # mark watched at end/90% without ask
 PLAYBACK_CATCH_UP = "playback.catch_up"  # double-clicking a later calendar episode plays the first unwatched one
 PLAYBACK_BACKEND = "playback.backend"  # "ani-cli" (default) or "external" (the link or command below)
 PLAYBACK_EXTERNAL = "playback.external"  # link or command template with {title} {query} {episode} {mal_id}
-PLAYBACK_PLAYER = "playback.player"  # the real mpv anical-mpv starts; unset = found automatically
+PLAYBACK_PLAYER_CHOICE = "playback.player_choice"  # "mpv", "vlc" or "iina"; unset = the first found, best first
+# Where each player is; unset = found automatically. "playback.player" is older than the other players.
+PLAYBACK_PLAYER_PATHS = {"mpv": "playback.player", "vlc": "playback.player.vlc", "iina": "playback.player.iina"}
 PLAYBACK_BASH = "playback.bash"  # Windows: Git Bash's bash.exe; unset = found automatically
 NOTIFICATIONS_ENABLED = "notifications.enabled"
 SETUP_SEEN = "setup.seen"  # the first-run wizard was finished or closed; it isn't shown again by itself

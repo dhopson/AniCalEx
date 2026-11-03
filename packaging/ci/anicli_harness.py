@@ -95,6 +95,8 @@ def write_fixtures(directory: Path) -> None:
 
 
 def make_video(path: Path) -> None:
+    """A short test video, with its index first: the test server has no range
+    requests, and VLC can't read a video with its index last without them."""
     if path.exists():
         return
     ffmpeg = shutil.which("ffmpeg")
@@ -105,7 +107,7 @@ def make_video(path: Path) -> None:
         [ffmpeg, "-loglevel", "error", "-y",
          "-f", "lavfi", "-i", f"testsrc=duration={VIDEO_SECONDS}:size=320x240:rate=25",
          "-f", "lavfi", "-i", f"sine=duration={VIDEO_SECONDS}",
-         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", str(path)],
+         "-c:v", "libx264", "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest", "-movflags", "+faststart", str(path)],
         check=True,
     )  # fmt: skip
 
@@ -270,10 +272,11 @@ def run_case(case, ctx) -> dict:
         ANI_CLI_LOG="0",
         ANICAL_PICK_DIR=str(session),
         ANICAL_PICK_TITLE=remembered or "",
-        ANICAL_MPV=ctx["mpv"],
+        ANICAL_PLAYER=ctx["mpv"],
+        ANICAL_PLAYER_KIND=ctx["kind"],
         ANICAL_PROGRESS_SCRIPT=str(REPO / "anical" / "playback" / "data" / "anical-progress.lua"),
         ANICAL_PROGRESS_OUT=str(progress),
-        ANICAL_MPV_FLAGS=json.dumps(flags),
+        ANICAL_PLAYER_FLAGS=json.dumps(flags),
         ANICAL_SHIM_LOG=str(shim_log),
         FAKE_HIANIME=str(ctx["fixtures"]),
     )
@@ -370,6 +373,14 @@ def run_case(case, ctx) -> dict:
     }
 
 
+def player_flags(args) -> list[str]:
+    if args.real:
+        return []
+    if args.vlc:
+        return ["--intf=dummy", "--aout=dummy"] + (["--vout=dummy"] if args.headless else [])
+    return ["--no-config", "--ao=null"] + (["--vo=null"] if args.headless else [])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--out", required=True, type=Path)
@@ -378,6 +389,9 @@ def main() -> int:
     parser.add_argument("--ani-cli")
     parser.add_argument("--bash")
     parser.add_argument("--mpv")
+    parser.add_argument(
+        "--vlc", help="play in VLC at this path instead of mpv (cases that use mpv scripts are skipped)"
+    )
     parser.add_argument("--headless", action="store_true", help="no video or audio output")
     parser.add_argument("--only", help="run only the case with this name")
     parser.add_argument("--real", metavar="TITLE", help="play one episode from the real source (by hand only)")
@@ -391,7 +405,7 @@ def main() -> int:
     discovery["bash"] = {"found": bash, "tried": tried}
     ani_cli, tried = (args.ani_cli, []) if args.ani_cli else find_ani_cli()
     discovery["ani_cli"] = {"found": ani_cli, "tried": tried}
-    mpv = args.mpv or find_mpv()
+    mpv = args.vlc or args.mpv or find_mpv()
     discovery["mpv"] = {"found": mpv}
     if WINDOWS:
         shims = Path.home() / "scoop" / "shims"
@@ -419,7 +433,8 @@ def main() -> int:
         "fixtures": work / "fixtures",
         "sessions": work / "sessions",
         "history": work / "history",
-        "mpv_flags": [] if args.real else ["--no-config", "--ao=null"] + (["--vo=null"] if args.headless else []),
+        "kind": "vlc" if args.vlc else "mpv",
+        "mpv_flags": player_flags(args),
         "real": bool(args.real),
     }
     install_helpers(args.helpers, ctx["helpers"])
@@ -428,6 +443,8 @@ def main() -> int:
     ctx["history"].mkdir(parents=True, exist_ok=True)
 
     cases = [("real_source", args.real, args.episode, None, "<ask>", [], None)] if args.real else CASES
+    if args.vlc:
+        cases = [case for case in cases if "quit_after" not in case[5]]
     results = []
     for case in cases:
         if args.only and case[0] != args.only:

@@ -10,7 +10,8 @@ license=('MIT')
 depends=('python' 'python-gobject' 'gtk4' 'libadwaita>=1:1.8' 'libsecret')
 makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
 optdepends=('ani-cli: play episodes'
-            'mpv: track how far you watched')
+            'mpv: play episodes'
+            'vlc: play episodes')
 source=()
 
 _appid=io.github.dhopson.AniCal

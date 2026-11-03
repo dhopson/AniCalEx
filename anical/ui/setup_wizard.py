@@ -5,8 +5,9 @@ Four steps, each skippable, with Back available until Finish:
 2. A MyAnimeList client ID: what it is, the exact values to register with,
    and a field to paste it.
 3. Signing in, or importing a public list by username.
-4. Playback: whether ani-cli and mpv (and Git Bash on Windows) are installed,
-   with Install buttons that open an install script in a terminal window.
+4. Playback: whether ani-cli (and Git Bash on Windows) and a video player are
+   installed, with this system's suggested player first, and Install buttons
+   that open an install script in a terminal window.
 
 Shown once on first launch when no client ID is set; "Set Up AniCal…" in the
 main menu opens it again.
@@ -22,7 +23,7 @@ from pathlib import Path
 from gi.repository import Adw, Gdk, GLib, Gtk
 
 from anical.auth.mal_oauth import REDIRECT_URI, OAuthError
-from anical.db.settings import SETUP_SEEN, SettingsRepository
+from anical.db.settings import PLAYBACK_PLAYER_CHOICE, SETUP_SEEN, SettingsRepository
 from anical.platform.terminal import TerminalError, open_install_terminal
 from anical.sync.mal_sync import ACCOUNT, USERNAME
 from anical.ui.playback_controller import PlaybackController, RequiredProgram
@@ -60,6 +61,7 @@ class _Program:
         self.name = program.name
         self.install_key = program.install_key
         self.resolve = program.resolve
+        self.choice: Gtk.CheckButton | None = None  # video players only
         self.row = Adw.ActionRow(title=program.name, use_markup=False)
         self.icon = Gtk.Image()
         self.row.add_prefix(self.icon)
@@ -112,7 +114,9 @@ class SetupWizard(Adw.Dialog):
         self._client_entry: Adw.EntryRow | None = None
         self._client_hint: Gtk.Label | None = None
         self._sign_in_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
-        self._programs = self._make_programs()
+        self._programs = self._make_programs(self._playback.required_programs())
+        self._players = self._make_players()
+        self._showing_choice = False
         self._install_status = _label("", "dim-label")
         for name, build in (
             ("welcome", self._welcome_page),
@@ -190,7 +194,7 @@ class SetupWizard(Adw.Dialog):
         for icon, title, subtitle in (
             ("system-users-symbolic", "A MyAnimeList client ID", "A free key that lets AniCal read MyAnimeList"),
             ("view-list-bullet-symbolic", "Your anime list", "Log in, or import a public list"),
-            ("media-playback-start-symbolic", "Playback", "Check for ani-cli and mpv, and install them"),
+            ("media-playback-start-symbolic", "Playback", "Check for ani-cli and a video player, and install them"),
         ):
             row = Adw.ActionRow(title=title, subtitle=subtitle, use_markup=False)
             row.add_prefix(Gtk.Image(icon_name=icon))
@@ -319,20 +323,51 @@ class SetupWizard(Adw.Dialog):
             self._sync.use_public_list(name)
             self._sync.sync()
 
-    def _make_programs(self) -> list[_Program]:
-        programs = [_Program(required) for required in self._playback.required_programs()]
+    def _make_programs(self, required: list[RequiredProgram]) -> list[_Program]:
+        programs = [_Program(program) for program in required]
         for program in programs:
             program.install.connect("clicked", lambda _b, p=program: self._install([p]))
         return programs
 
+    def _make_players(self) -> list[_Program]:
+        """A row per video player, chosen by radio button, the suggested one first and marked so."""
+        players = self._make_programs(self._playback.player_programs())
+        for player in players:
+            if player.install_key == self._playback.suggested_player.value:
+                player.row.set_title(f"{player.name} (Recommended)")
+            player.choice = Gtk.CheckButton(valign=Gtk.Align.CENTER, group=players[0].choice)
+            player.choice.connect("toggled", self._on_player_toggled, player)
+            player.row.add_prefix(player.choice)
+            player.row.set_activatable_widget(player.choice)
+        return players
+
+    def _on_player_toggled(self, button: Gtk.CheckButton, player: _Program) -> None:
+        if button.get_active() and not self._showing_choice:
+            self._playback.set_setting(PLAYBACK_PLAYER_CHOICE, player.install_key)
+            self._recheck()
+
+    @property
+    def _chosen_player(self) -> _Program:
+        chosen = self._playback.chosen_player.value
+        return next(p for p in self._players if p.install_key == chosen)
+
+    @property
+    def _all_found(self) -> bool:
+        return all(p.found for p in (*self._programs, self._chosen_player))
+
     def _playback_page(self) -> Gtk.Widget:
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=12)
         box.append(_label("Set Up Playback", "title-2"))
-        box.append(_label("AniCal plays episodes with ani-cli, which streams them in mpv."))
+        box.append(_label("AniCal plays episodes with ani-cli, which streams them in the video player you choose."))
         rows = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
         for program in self._programs:
             rows.append(program.row)
         box.append(rows)
+        box.append(_label("Video Player", "heading"))
+        player_rows = Gtk.ListBox(css_classes=["boxed-list"], selection_mode=Gtk.SelectionMode.NONE)
+        for player in self._players:
+            player_rows.append(player.row)
+        box.append(player_rows)
         self._install_note = _label(
             "Install opens a terminal window that explains each step and asks before installing anything. "
             "This page checks again by itself.",
@@ -358,9 +393,12 @@ class SetupWizard(Adw.Dialog):
         self._install_status.set_label("Follow the steps in the terminal window.")
 
     def _recheck(self) -> bool:
-        for program in self._programs:
+        for program in (*self._programs, *self._players):
             program.refresh()
-        all_found = all(p.found for p in self._programs)
+        self._showing_choice = True  # moving the radio button isn't the user choosing
+        self._chosen_player.choice.set_active(True)
+        self._showing_choice = False
+        all_found = self._all_found
         self._set_mascot("playback", "done" if all_found else "playback")
         self._install_note.set_visible(not all_found)
         if all_found:
@@ -444,11 +482,11 @@ class SetupWizard(Adw.Dialog):
         else:
             sign_in = "Now let’s bring in your anime list. Log in, or use a public list’s username."
         self._bubbles["sign-in"].set_label(sign_in)
-        all_found = self._programs and all(p.found for p in self._programs)
+        suggested = self._playback.suggested_player.label
         self._bubbles["playback"].set_label(
             "All set! Press Finish and enjoy your shows."
-            if all_found
-            else "Last one! AniCal plays episodes with ani-cli and mpv. Let’s make sure they’re installed."
+            if self._all_found
+            else f"Last one! AniCal plays episodes with ani-cli and a video player. I’d go with {suggested} here."
         )
 
     def _on_closed(self, *_):

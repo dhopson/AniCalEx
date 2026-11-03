@@ -8,7 +8,7 @@ AniCal is a desktop app for tracking anime on Linux, macOS and Windows. It keeps
 
 ## Features
 
-- **Setup wizard.** On first launch, AniCal's mascot walks you through four short steps. You get a MyAnimeList client ID, log in or import a public list, and check for ani-cli and mpv. Each program has an Install button that opens a terminal window for your system. Every step can be skipped, and Back works until you finish. Main menu → Set Up AniCal… opens it again, with what you've already set up filled in.
+- **Setup wizard.** On first launch, AniCal's mascot walks you through four short steps. You get a MyAnimeList client ID, log in or import a public list, and check for ani-cli and a video player, with the best one for your system suggested. Each program has an Install button that opens a terminal window for your system. Every step can be skipped, and Back works until you finish. Main menu → Set Up AniCal… opens it again, with what you've already set up filled in.
 - **Local library.** You can add, edit and delete shows by hand. Episodes can be marked watched one at a time or all at once, with undo. The library can be searched, filtered and sorted. All of this works offline, with no account.
 - **MyAnimeList import.** You can log in through your browser (OAuth with PKCE), or import a public list by username (see [Connecting MyAnimeList](#connecting-myanimelist)). Imports run when the app starts if the last successful sync was more than 24 hours ago, then once a day while the app runs, and on demand with <kbd>Ctrl</kbd>+<kbd>R</kbd>.
   - Imports bring in cover art and MAL list statuses.
@@ -26,19 +26,19 @@ AniCal is a desktop app for tracking anime on Linux, macOS and Windows. It keeps
   - Shows that are airing but have no known date are listed rather than placed on a guessed date.
   - Times are stored in UTC and shown in your chosen time zone (default: the system's), with correct DST handling.
   - Optionally, the calendar can use English titles where MAL has them (Preferences → General → Use English Titles).
-- **Playback.** Play buttons on the show page and in the calendar run `ani-cli` for that exact episode, and ani-cli plays it in mpv.
+- **Playback.** Play buttons on the show page and in the calendar run `ani-cli` for that exact episode, and ani-cli plays it in the video player you choose: mpv or VLC, or IINA on macOS. AniCal suggests IINA on macOS, VLC on Windows and mpv on Linux. Until you choose, a new library uses the first of them it finds, in that order. A library from an earlier version stays on mpv until you change it.
   - The show page also has a "Play Episode N" button for the next unwatched episode that has aired.
   - Double-clicking a show in the library plays that same next episode, and double-clicking an aired episode in the calendar plays it. In the library and the calendar's lists a single click still opens the show; in the week view a single click does nothing.
   - **Catching up:** if you double-click an unwatched calendar episode (or press Enter on it in the week view) while an earlier aired episode of that show is unwatched, the earliest one plays instead, and a message says so. Seasons are separate shows on MyAnimeList, so this stays within the season. Watched episodes play as clicked, and so do the Play buttons and the context menu's Play. To turn it off, use Preferences → Playback → Catch Up From the Calendar.
   - Calendar episodes have a context menu (Play, Open Show, Mark Watched): right-click, or on a Mac Control-click or a two-finger tap. A long press works on touch screens, and the Menu key or Shift+F10 from the keyboard. Enter on a week-view episode plays it.
   - While ani-cli finds and starts the episode, a small card in the window's corner says what's playing. It closes when playback ends, or with its close button. To make it bigger, set Preferences → Playback → Playing Card Size to Large: the card is then centered and grows with the window, up to 75% of its width or height, whichever comes first.
   - **Finding the show:** if ani-cli's search finds several shows, AniCal asks which one is right and remembers the answer. Per show, you can change the search text, forget the chosen match, set an episode offset for differently numbered seasons, or choose sub or dub (show menu → Playback Settings…).
-  - **Watched tracking:** a small mpv script reports how far playback got. If you play to the end or past 90%, the episode is marked watched, with Undo. If you stop earlier, AniCal asks.
+  - **Watched tracking:** AniCal asks the player how far playback got (mpv through a small script, VLC through its web interface on your own computer, IINA through its mpv's socket). If you play to the end or past 90%, the episode is marked watched, with Undo. If you stop earlier, or the player can't say, AniCal asks.
     - Launching an episode never marks it watched.
     - Automatic marking can be turned off in Preferences → Playback.
-  - **Finding ani-cli and mpv:** AniCal looks on your `PATH`, and also where Homebrew (macOS) and scoop (Windows) install them. On Windows it runs ani-cli through Git for Windows' Git Bash. Preferences → Playback shows what was found, and you can set each location by hand.
+  - **Finding ani-cli and the player:** AniCal looks on your `PATH`, and also where Homebrew and the VLC and IINA apps (macOS) and scoop and VLC's installer (Windows) put them. On Windows it runs ani-cli through Git for Windows' Git Bash. Preferences → Playback lets you choose the player, shows what was found, and lets you set each location by hand.
   - **ani-cli's history:** shown as a hint ("Last launched: Episode 5"), because it records what was started, not what was finished. It is never applied automatically. AniCal never writes to it.
-  - **Safety:** ani-cli runs without a shell, with the title as a single argument, and only one playback runs at a time. Clear messages cover a missing ani-cli, mpv or Git Bash, an episode that isn't released yet, a search that finds nothing (with a button to change the search), and failures.
+  - **Safety:** ani-cli runs without a shell, with the title as a single argument, and only one playback runs at a time. Clear messages cover a missing ani-cli, video player or Git Bash, an episode that isn't released yet, a search that finds nothing (with a button to change the search), and failures.
   - **Without ani-cli:** Preferences → Playback → Play With → Link or Command opens a web address or runs a program for the episode instead. `{title}`, `{query}`, `{episode}` and `{mal_id}` are filled in, for example `https://example.org/search?q={title}` or `vlc "/media/anime/{title}/{episode}.mkv"`. Values are URL-encoded in links, and commands run without a shell. AniCal can't tell how much you watched, so it offers "Mark Watched".
 - **Notifications.** While AniCal runs, you're told once per episode when an episode you follow becomes probably available. Each notification has a **Play** button, and clicking the notification opens the show. More than three at once become a single summary that opens the Unwatched list.
   - They appear as native notifications on each system: GNOME's, macOS Notification Center, and Windows toasts.
@@ -68,18 +68,19 @@ Either way, this installs the `anical` command, a desktop entry, the icon and Ap
 
 On other distributions, [run it from source](#running-from-source).
 
-For playback, install `ani-cli` and `mpv` from your distribution or from [ani-cli's instructions](https://github.com/pystardust/ani-cli).
+For playback, install `ani-cli` and `mpv` (or `vlc`) from your distribution or from [ani-cli's instructions](https://github.com/pystardust/ani-cli).
 
 ### macOS
 
 1. Download `AniCal-<version>-macos-arm64.dmg` (Apple Silicon) or `AniCal-<version>-macos-x86_64.dmg` (Intel) from the [release page](https://github.com/dhopson/AniCalEx/releases/latest). Open it and drag AniCal to Applications.
 2. AniCal isn't notarized by Apple, so the first time, **right-click AniCal → Open → Open**. If macOS says the app is damaged, run `xattr -dr com.apple.quarantine /Applications/AniCal.app` in Terminal and try again.
-3. For playback, install ani-cli from its own Homebrew tap (it isn't in Homebrew's main collection), and mpv:
+3. For playback, install ani-cli from its own Homebrew tap (it isn't in Homebrew's main collection), and a video player. IINA is suggested; `mpv` or `vlc` work too:
 
    ```sh
    brew tap pystardust/ani-cli https://github.com/pystardust/ani-cli.git
    brew trust pystardust/ani-cli
-   brew install ani-cli mpv
+   brew install ani-cli
+   brew install --cask iina
    ```
 
    See [ani-cli's install notes](https://github.com/pystardust/ani-cli) for details.
@@ -93,7 +94,8 @@ The app is signed ad hoc, so after an update macOS may ask once whether AniCal m
 2. AniCal isn't code-signed, so SmartScreen may warn. Choose **More info → Run anyway**.
 3. For playback, follow the Windows part of [ani-cli's install instructions](https://github.com/pystardust/ani-cli):
    1. Install Git for Windows and [scoop](https://scoop.sh).
-   2. Run `scoop bucket add extras`, then `scoop install ani-cli mpv`.
+   2. Run `scoop bucket add extras`, then `scoop install ani-cli`.
+   3. Install [VLC](https://www.videolan.org/vlc/), or mpv with `scoop install mpv`.
 
    You don't need ani-cli's Windows Terminal profile, because AniCal starts ani-cli itself.
 
@@ -171,7 +173,7 @@ Requirements:
   - Arch / CachyOS: `pacman -S python-gobject gtk4 libadwaita`
   - Fedora: `dnf install python3-gobject gtk4 libadwaita`
   - Debian / Ubuntu: `apt install python3-gi gir1.2-gtk-4.0 gir1.2-adw-1` (check that the distribution's libadwaita is 1.8 or newer)
-- For playback: [`ani-cli`](https://github.com/pystardust/ani-cli) (tested with 5.1.0 and 5.1.6) and mpv.
+- For playback: [`ani-cli`](https://github.com/pystardust/ani-cli) (tested with 5.1.0 and 5.1.6), and mpv, VLC or (on macOS) IINA.
 
 ```sh
 python3 -m venv --system-site-packages .venv   # system site packages expose the distro's `gi`
@@ -215,8 +217,8 @@ anical/
   providers/        MyAnimeList and AniList API clients with response validation
   auth/             MAL OAuth (PKCE plain, loopback receiver) and libsecret token storage
   sync/             worker-thread fetchers (MAL list, AniList schedules) and cover cache
-  platform/         per-OS paths, login storage, notifications, time zone, and finding ani-cli/mpv/Git Bash
-  playback/         helpers given to ani-cli: picker (anical-pick), mpv shim (anical-mpv), progress script
+  platform/         per-OS paths, login storage, notifications, time zone, and finding ani-cli/video players/Git Bash
+  playback/         helpers given to ani-cli: picker (anical-pick), player shim (anical-mpv), mpv progress script
   ui/               window, calendar and library views, show page, dialogs, preferences, refresh controller
   data/icons/       app icon (full colour and symbolic)
   data/setup/       the setup wizard's mascot and per-system install scripts

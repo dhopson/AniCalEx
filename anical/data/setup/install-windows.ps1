@@ -1,9 +1,9 @@
-# AniCal setup: installs Git for Windows, ani-cli and mpv.
+# AniCal setup: installs Git for Windows, ani-cli and a video player.
 #
 # AniCal's setup wizard opens this in a PowerShell window. It says what it will
-# do and asks before each step. Git for Windows comes from winget; ani-cli and
-# mpv come from scoop, as ani-cli's Windows instructions describe.
-# Usage: install-windows.ps1 [git] [ani-cli] [mpv]
+# do and asks before each step. Git for Windows and VLC come from winget; ani-cli
+# and mpv come from scoop, as ani-cli's Windows instructions describe.
+# Usage: install-windows.ps1 [git] [ani-cli] [mpv] [vlc]
 param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Programs)
 
 function Say($text) { Write-Host "`n$text" -ForegroundColor Cyan }
@@ -68,6 +68,15 @@ foreach ($program in $Programs) {
             if (-not (Ask "Continue?")) { $failed = $true; continue }
             scoop bucket add extras
             scoop install mpv
+            if ($LASTEXITCODE) { $failed = $true }
+        }
+        'vlc' {
+            $vlc = @("$env:ProgramFiles\VideoLAN\VLC\vlc.exe", "${env:ProgramFiles(x86)}\VideoLAN\VLC\vlc.exe", "$HOME\scoop\apps\vlc\current\vlc.exe") | Where-Object { Test-Path $_ }
+            if ($vlc) { Say "VLC is already installed: $($vlc[0])"; continue }
+            Say "Installing VLC"
+            Write-Host "Will run: winget install --id VideoLAN.VLC -e --source winget"
+            if (-not (Ask "Continue?")) { $failed = $true; continue }
+            winget install --id VideoLAN.VLC -e --source winget
             if ($LASTEXITCODE) { $failed = $true }
         }
         default { Write-Host "Don't know how to install $program."; $failed = $true }

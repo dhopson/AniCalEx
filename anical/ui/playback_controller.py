@@ -10,7 +10,7 @@ import subprocess
 import tempfile
 import threading
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from gi.repository import Gio, GLib, GObject
@@ -25,7 +25,8 @@ from anical.db.settings import (
     PLAYBACK_EXECUTABLE,
     PLAYBACK_EXTERNAL,
     PLAYBACK_MODE,
-    PLAYBACK_PLAYER,
+    PLAYBACK_PLAYER_CHOICE,
+    PLAYBACK_PLAYER_PATHS,
     PLAYBACK_QUALITY,
     SettingsRepository,
 )
@@ -38,6 +39,7 @@ from anical.domain.playback import (
     PlaybackError,
     PlaybackMapping,
     PlaybackResult,
+    Player,
     build_launch,
     decide,
     expand_external,
@@ -45,7 +47,7 @@ from anical.domain.playback import (
     sanitize_query,
 )
 from anical.platform import System, current
-from anical.platform.anicli import find_ani_cli, find_bash, find_player
+from anical.platform.anicli import find_ani_cli, find_bash, find_player, players
 from anical.playback import install_helpers
 from anical.ui.display import DisplaySettings
 
@@ -66,7 +68,7 @@ class PickRequest:
 
 @dataclass(frozen=True)
 class RequiredProgram:
-    """A program ani-cli playback needs, as the setup wizard and Preferences show it."""
+    """A program ani-cli playback can need, as the setup wizard and Preferences show it."""
 
     name: str  # shown to the user
     install_key: str  # the install scripts' name for it (anical/data/setup)
@@ -142,7 +144,6 @@ class PlaybackController(GObject.Object):
             mode=mode if mode in MODES else "sub",
             quality=quality if quality in QUALITIES else "best",
             auto_mark=self._settings.get(PLAYBACK_AUTO_MARK, True) is not False,
-            player=self._settings.get(PLAYBACK_PLAYER) or "mpv",
             bash=self._settings.get(PLAYBACK_BASH),
             catch_up=self._settings.get(PLAYBACK_CATCH_UP, True) is not False,
         )
@@ -163,20 +164,51 @@ class PlaybackController(GObject.Object):
     def resolve_executable(self) -> str | None:
         return find_ani_cli(self._settings.get(PLAYBACK_EXECUTABLE))
 
-    def resolve_player(self) -> str | None:
-        return find_player(self._settings.get(PLAYBACK_PLAYER))
+    def resolve_player(self, player: Player) -> str | None:
+        return find_player(self._settings.get(PLAYBACK_PLAYER_PATHS[player.value]), player=player)
+
+    @property
+    def suggested_player(self) -> Player:
+        return players()[0]
+
+    @property
+    def chosen_player(self) -> Player:
+        """The user's choice. Without one, the first this system offers that's
+        installed, or else the one to suggest. A choice from a backup made on
+        another system, which this one doesn't offer, counts as no choice."""
+        offered = players()
+        saved = self._settings.get(PLAYBACK_PLAYER_CHOICE)
+        if saved in offered:
+            return Player(saved)
+        return next((player for player in offered if self.resolve_player(player)), offered[0])
 
     def resolve_bash(self) -> str | None:
         """Git Bash, which runs ani-cli on Windows. None elsewhere."""
         return find_bash(self._settings.get(PLAYBACK_BASH)) if current() is System.WINDOWS else None
 
+    def player_programs(self) -> list[RequiredProgram]:
+        """The video players this system offers, the one to suggest first. Only the chosen one is needed."""
+        return [
+            RequiredProgram(
+                player.label,
+                player.value,
+                PLAYBACK_PLAYER_PATHS[player.value],
+                "A video player for ani-cli to use.",
+                lambda player=player: self.resolve_player(player),
+            )
+            for player in players()
+        ]
+
+    def location(self, program: RequiredProgram) -> str:
+        """Where the user said `program` is, or "" to find it automatically."""
+        return self._settings.get(program.setting) or ""
+
     def required_programs(self) -> list[RequiredProgram]:
-        """What ani-cli playback needs on this system, in install order."""
+        """What ani-cli playback needs on this system besides a video player, in install order."""
         programs = [
             RequiredProgram(
                 "ani-cli", "ani-cli", PLAYBACK_EXECUTABLE, "It finds and streams episodes.", self.resolve_executable
             ),
-            RequiredProgram("mpv", "mpv", PLAYBACK_PLAYER, "The video player ani-cli uses.", self.resolve_player),
         ]
         if current() is System.WINDOWS:
             programs.insert(
@@ -218,16 +250,15 @@ class PlaybackController(GObject.Object):
         executable = self.resolve_executable()
         if executable is None:
             return "ani-cli wasn’t found. Set its location in Preferences → Playback."
-        player = self.resolve_player()
+        kind = self.chosen_player
+        player = self.resolve_player(kind)
         if player is None:
-            return "mpv wasn’t found. Set its location in Preferences → Playback."
+            return f"{kind.label} wasn’t found. Set its location or choose another player in Preferences → Playback."
         windows = current() is System.WINDOWS
         bash = self.resolve_bash()
         if windows and bash is None:
             return "Git Bash wasn’t found. Install Git for Windows, or set bash.exe in Preferences → Playback."
-        config = PlaybackConfig(
-            self.config.executable, self.config.mode, self.config.quality, self.config.auto_mark, player, bash
-        )
+        config = replace(self.config, player=player, player_kind=kind, bash=bash)
         if windows:
             executable = executable.replace("\\", "/")  # bash takes C:/... paths as they are
         directory = terminal = None

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# AniCal setup: installs ani-cli and mpv on Linux.
+# AniCal setup: installs ani-cli and a video player on Linux.
 #
 # AniCal's setup wizard opens this in a terminal window. It says what it will
 # do and asks before each step; installing system packages asks for your
-# password through sudo. Usage: install-linux.sh [ani-cli] [mpv]
+# password through sudo. Usage: install-linux.sh [ani-cli] [mpv] [vlc]
 set -u
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
@@ -72,8 +72,8 @@ for program in "${wanted[@]}"; do
     fi
     say "Installing $program"
     case $program in
-        mpv)
-            from_package mpv || failed=1
+        mpv | vlc)
+            from_package "$program" || failed=1
             ;;
         ani-cli)
             if has_package ani-cli; then

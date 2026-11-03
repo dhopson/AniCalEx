@@ -1,4 +1,4 @@
-"""Helper files handed to ani-cli and mpv."""
+"""Helper files handed to ani-cli and the video player."""
 
 from __future__ import annotations
 

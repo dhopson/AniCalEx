@@ -106,7 +106,7 @@ def run(window: Gtk.Window, paths, send) -> dict:
             [program("anical-mpv"), "https://example.invalid/ep.m3u8"],
             capture_output=True,
             timeout=30,
-            env={**os.environ, "ANICAL_MPV": str(paths.runtime / "no-such-mpv")},
+            env={**os.environ, "ANICAL_PLAYER": str(paths.runtime / "no-such-mpv")},
             creationflags=flags,
         )
         ok = pick.stdout.strip() == b"quit" and shim.returncode == 127 and script.is_file()
@@ -165,9 +165,9 @@ def run(window: Gtk.Window, paths, send) -> dict:
         return all(width > 0 for width in sizes.values()), f"{sizes}"
 
     def programs():
-        from anical.platform.anicli import find_ani_cli, find_bash, find_player
+        from anical.platform.anicli import find_ani_cli, find_bash, find_player, players
 
-        found = {"ani-cli": find_ani_cli(), "mpv": find_player()}
+        found = {"ani-cli": find_ani_cli(), **{p.value: find_player(player=p) for p in players()}}
         if system is System.WINDOWS:
             found["bash"] = find_bash()
         return True, json.dumps(found)

@@ -1,9 +1,9 @@
 #!/bin/bash
-# AniCal setup: installs ani-cli and mpv on macOS with Homebrew.
+# AniCal setup: installs ani-cli and a video player on macOS with Homebrew.
 #
 # AniCal's setup wizard opens this in Terminal. It says what it will do and
 # asks before each step. ani-cli comes from its own Homebrew tap, as its
-# install instructions describe. Usage: install-macos.command [ani-cli] [mpv]
+# install instructions describe. Usage: install-macos.command [ani-cli] [mpv] [vlc] [iina]
 set -u
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
@@ -51,6 +51,10 @@ for program in "${wanted[@]}"; do
         mpv)
             echo "Will run: brew install mpv"
             if ask "Continue?"; then brew install mpv || failed=1; else failed=1; fi
+            ;;
+        vlc | iina)
+            echo "Will run: brew install --cask $program"
+            if ask "Continue?"; then brew install --cask "$program" || failed=1; else failed=1; fi
             ;;
         ani-cli)
             echo "ani-cli isn't in Homebrew's main collection. Will run:"

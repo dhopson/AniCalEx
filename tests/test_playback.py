@@ -1,6 +1,8 @@
 import json
 import os
+import socket
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -86,7 +88,7 @@ def test_launch_uses_an_argument_vector(tmp_path, helpers):
     # Helpers are called by name from a folder put first on PATH.
     assert (launch.env["ANI_CLI_MENU"], launch.env["ANI_CLI_PLAYER"]) == ("anical-pick", "anical-mpv")
     assert launch.env["PATH"].split(os.pathsep)[0] == str(helpers[0])
-    assert launch.env["ANICAL_MPV"] == "/opt/mpv"
+    assert (launch.env["ANICAL_PLAYER"], launch.env["ANICAL_PLAYER_KIND"]) == ("/opt/mpv", "mpv")
     assert launch.env["ANICAL_PROGRESS_OUT"] == str(launch.progress_path)
     assert "ANI_CLI_PLAYER_FLAGS" not in launch.env
 
@@ -172,6 +174,102 @@ def test_player_shim_starts_mpv_with_the_progress_script(tmp_path, helpers):
     assert args[0] == f"--script={helpers[1]}"
     assert args[1] == f"--script-opts=anical-out={launch.progress_path}"
     assert "--referrer=https://embed.example/" in args and args[-1] == "https://stream.example/ep.m3u8"
+
+
+SHIM = Path(__file__).parent.parent / "anical" / "playback" / "data" / "anical-mpv.py"
+MPV_ARGS = [
+    "--referrer=https://embed.example/",
+    "--audio-file=https://cdn.example/audio.m3u8",
+    "--sub-file=https://cdn.example/subs.vtt",
+    "--force-media-title=Show Episode 3",
+    "https://stream.example/ep.m3u8",
+]
+
+
+def run_shim(kind, player, tmp_path, **env):
+    """The shim as ani-cli starts it. Returns its exit code and the progress it left."""
+    out = tmp_path / "progress.json"
+    result = subprocess.run(
+        [sys.executable, "-I", str(SHIM), *MPV_ARGS],
+        env={**os.environ, "ANICAL_PLAYER": player, "ANICAL_PLAYER_KIND": kind, "ANICAL_PROGRESS_OUT": str(out), **env},
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+    return result.returncode, parse_progress(out.read_text()) if out.exists() else None
+
+
+FAKE_VLC = str(Path(__file__).parent / "fake_vlc.py")
+VLC_PLAYING = '{"state": "playing", "time": 1368, "length": 1440, "position": 0.95}'
+
+
+def test_vlc_gets_mpvs_options_translated_and_reports_progress(tmp_path):
+    log = tmp_path / "vlc.jsonl"
+    code, progress = run_shim(
+        "vlc", FAKE_VLC, tmp_path, FAKE_VLC_LOG=str(log), FAKE_VLC_STATUS=VLC_PLAYING, FAKE_VLC_SECONDS="1.5"
+    )
+    assert code == 0
+    assert progress == Progress("quit", 95.0, 1368.0, 1440.0)
+    assert decide(code, progress, "").outcome is Outcome.WATCHED
+    args = json.loads(log.read_text())
+    assert "--http-host=127.0.0.1" in args  # loopback only
+    for expected in ("--play-and-exit", "--http-referrer=https://embed.example/", "--meta-title=Show Episode 3"):
+        assert expected in args
+    assert args[-2:] == [
+        "https://stream.example/ep.m3u8",
+        ":input-slave=https://cdn.example/audio.m3u8#https://cdn.example/subs.vtt",
+    ]
+    assert not any(a.startswith(("--referrer", "--sub-file", "--force-media-title")) for a in args)
+
+
+def test_a_last_reading_near_the_end_counts_as_played_to_the_end(tmp_path):
+    # Readings are half a second apart, which is a lot of a short video.
+    status = '{"state": "playing", "time": 4, "length": 6, "position": 0.7}'
+    code, progress = run_shim("vlc", FAKE_VLC, tmp_path, FAKE_VLC_STATUS=status, FAKE_VLC_SECONDS="1.5")
+    assert progress.reason == "eof" and decide(code, progress, "").outcome is Outcome.WATCHED
+
+
+def test_vlc_that_never_played_is_a_failure(tmp_path):
+    status = '{"state": "stopped", "time": 0, "length": 0, "position": 0}'
+    code, progress = run_shim("vlc", FAKE_VLC, tmp_path, FAKE_VLC_STATUS=status, FAKE_VLC_SECONDS="1.5")
+    assert decide(code, progress, "").outcome is Outcome.FAILED
+
+
+def test_vlc_without_a_web_interface_still_plays_and_the_user_is_asked(tmp_path):
+    log = tmp_path / "vlc.jsonl"
+    code, progress = run_shim("vlc", FAKE_VLC, tmp_path, FAKE_VLC_LOG=str(log), FAKE_VLC_NO_HTTP="1")
+    assert code == 0 and progress is None
+    assert decide(code, progress, "").outcome is Outcome.UNKNOWN
+    first, second = (json.loads(line) for line in log.read_text().splitlines())
+    assert any(a.startswith("--http-password=") for a in first)
+    assert not any(a.startswith("--http-") and a != "--http-referrer=https://embed.example/" for a in second)
+
+
+def test_vlc_that_ends_at_once_couldnt_open_the_stream(tmp_path):
+    code, progress = run_shim("vlc", FAKE_VLC, tmp_path, FAKE_VLC_SILENT="1", FAKE_VLC_SECONDS="0.2")
+    assert code == 0  # as real VLC does for a stream it can't open
+    assert decide(code, progress, "").outcome is Outcome.FAILED
+
+
+@pytest.mark.skipif(not hasattr(socket, "AF_UNIX"), reason="IINA is macOS only; the test needs Unix sockets")
+def test_iina_gets_mpvs_options_translated_and_ends_when_its_mpv_goes_idle(tmp_path):
+    log = tmp_path / "iina.json"
+    fake = str(Path(__file__).parent / "fake_iina.py")
+    code, progress = run_shim("iina", fake, tmp_path, FAKE_IINA_LOG=str(log))
+    assert code == 0  # the fake exits 3 unless the shim ended it
+    assert progress == Progress("quit", 95.0, 1368.0, 1440.0)
+    args = json.loads(log.read_text())
+    assert args[1:3] == ["--no-stdin", "--keep-running"]
+    assert "--mpv-referrer=https://embed.example/" in args
+    assert "--mpv-sub-files=https\\://cdn.example/subs.vtt" in args  # mpv splits this list on ":"
+    assert "--mpv-force-media-title=Show Episode 3" in args
+    assert args[-1] == "https://stream.example/ep.m3u8"
+
+
+@pytest.mark.parametrize("kind", ["mpv", "vlc", "iina"])
+def test_a_missing_player_is_reported_with_127(kind, tmp_path):
+    code, progress = run_shim(kind, str(tmp_path / "no-such-player"), tmp_path)
+    assert code == 127 and progress is None
 
 
 def test_player_exit_status_comes_back(tmp_path, helpers):
