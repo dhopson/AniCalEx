@@ -82,6 +82,7 @@ class PlaybackConfig:
     auto_mark: bool = True
     player: str = "mpv"
     bash: str | None = None  # Windows: Git for Windows' bash.exe
+    catch_up: bool = True
 
 
 @dataclass(frozen=True)

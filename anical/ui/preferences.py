@@ -21,6 +21,7 @@ from anical.db.settings import (
     PLAYBACK_AUTO_MARK,
     PLAYBACK_BACKEND,
     PLAYBACK_BASH,
+    PLAYBACK_CATCH_UP,
     PLAYBACK_EXECUTABLE,
     PLAYBACK_EXTERNAL,
     PLAYBACK_MODE,
@@ -155,6 +156,13 @@ class PreferencesDialog(Adw.PreferencesDialog):
         backend = Adw.ComboRow(title="Play With", model=Gtk.StringList.new(["ani-cli", "Link or Command"]))
         backend.set_selected(BACKENDS.index(playback.backend))
         method.add(backend)
+        catch_up = Adw.SwitchRow(
+            title="Catch Up From the Calendar",
+            subtitle="Double-clicking a later episode plays the first one you haven’t watched in that season.",
+            active=config.catch_up,
+        )
+        catch_up.connect("notify::active", lambda row, _p: playback.set_setting(PLAYBACK_CATCH_UP, row.get_active()))
+        method.add(catch_up)
         page.add(method)
 
         programs = Adw.PreferencesGroup(

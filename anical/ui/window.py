@@ -151,11 +151,13 @@ class MainWindow(Adw.ApplicationWindow):
         self._stack.set_visible_child_name("calendar")
         self.calendar_view.show_mode("unwatched")
 
+    def _airs_at(self, anime_id: int) -> dict[int, int]:
+        airings = self.schedule.episode_airings(anime_id)
+        return {episode_id: airing.airs_at for episode_id, airing in airings.items()}
+
     def next_episode(self, anime_id: int) -> Episode | None:
         """The episode Play starts for a show: see EpisodeList.next_to_play."""
-        airings = self.schedule.episode_airings(anime_id)
-        airs_at = {episode_id: airing.airs_at for episode_id, airing in airings.items()}
-        return self.repository.episodes(anime_id).next_to_play(airs_at, int(time.time()))
+        return self.repository.episodes(anime_id).next_to_play(self._airs_at(anime_id), int(time.time()))
 
     def play_show(self, anime_id: int) -> None:
         """Play a show's next episode (double-clicking it in a list)."""
@@ -164,11 +166,25 @@ class MainWindow(Adw.ApplicationWindow):
         else:
             self.toast("Nothing to play: every aired episode is watched")
 
-    def play_episode(self, episode_id: int) -> None:
+    def play_episode(self, episode_id: int) -> bool:
+        """Start an episode, or say why it can't start. Returns whether it started."""
         if problem := self.playback.play(episode_id):
             self.toast(problem)
-        elif self.playback.playing:  # ani-cli; an opened link or command reports straight away
+            return False
+        if self.playback.playing:  # ani-cli; an opened link or command reports straight away
             self._playing.present(self.playback.playing)
+        return True
+
+    def play_from_calendar(self, anime_id: int, episode_id: int) -> None:
+        """Play a calendar episode by double-click or Enter, catching up on earlier ones if that's turned on."""
+        earlier = None
+        if self.playback.config.catch_up:
+            episodes = self.repository.episodes(anime_id)
+            earlier = episodes.catch_up_target(episode_id, self._airs_at(anime_id), int(time.time()))
+        if earlier is None:
+            self.play_episode(episode_id)
+        elif self.play_episode(earlier.id):
+            self.toast(f"Playing {earlier.label}, the first one you haven’t watched")
 
     def open_playback_settings(self, anime_id: int) -> None:
         anime = self.repository.get_anime(anime_id)

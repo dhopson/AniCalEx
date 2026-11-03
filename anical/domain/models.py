@@ -283,3 +283,14 @@ class EpisodeList:
             ):
                 return episode
         return None
+
+    def catch_up_target(self, clicked_id: int, airs_at: Mapping[int, int], now: int) -> Episode | None:
+        """The earlier episode to play instead of the unwatched one at `clicked_id`, or None
+        to play what was clicked. A watched episode is a deliberate rewatch. Episodes come
+        from this one show only, and each season is its own show, so a season never reaches
+        back into an earlier one."""
+        clicked = next((e for e in self.episodes if e.id == clicked_id), None)
+        if clicked is None or clicked.kind is not EpisodeKind.REGULAR or clicked.state is not WatchState.UNWATCHED:
+            return None
+        first = self.next_to_play(airs_at, now)
+        return first if first is not None and first.number < clicked.number else None

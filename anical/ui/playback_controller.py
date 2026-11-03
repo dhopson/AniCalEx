@@ -21,6 +21,7 @@ from anical.db.settings import (
     PLAYBACK_AUTO_MARK,
     PLAYBACK_BACKEND,
     PLAYBACK_BASH,
+    PLAYBACK_CATCH_UP,
     PLAYBACK_EXECUTABLE,
     PLAYBACK_EXTERNAL,
     PLAYBACK_MODE,
@@ -143,6 +144,7 @@ class PlaybackController(GObject.Object):
             auto_mark=self._settings.get(PLAYBACK_AUTO_MARK, True) is not False,
             player=self._settings.get(PLAYBACK_PLAYER) or "mpv",
             bash=self._settings.get(PLAYBACK_BASH),
+            catch_up=self._settings.get(PLAYBACK_CATCH_UP, True) is not False,
         )
 
     @property

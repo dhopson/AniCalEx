@@ -254,7 +254,7 @@ class CalendarView(Adw.Bin):
             hint = "Double-click to play"
 
             def primary() -> None:
-                self._window.play_episode(entry.episode_id)
+                self._window.play_from_calendar(entry.anime_id, entry.episode_id)
         else:
             hint = "Double-click to open the show"
 
@@ -312,7 +312,7 @@ class CalendarView(Adw.Bin):
             row.add_suffix(play)
         row.connect("activated", lambda *_: self._window.show_anime(entry.anime_id))
         if entry.airs_at <= now:
-            on_row_double_click(row, lambda: self._window.play_episode(entry.episode_id))
+            on_row_double_click(row, lambda: self._window.play_from_calendar(entry.anime_id, entry.episode_id))
         add_context_menu(row, self._entry_menu(entry, now))
         return row
 

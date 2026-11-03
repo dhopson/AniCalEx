@@ -80,3 +80,35 @@ def test_next_to_play_is_the_first_aired_unwatched_numbered_episode():
     assert episodes.next_to_play({3: 50}, now=100).id == 3
     assert episodes.next_to_play({3: 150, 4: 160}, now=100) is None  # not aired yet
     assert EpisodeList([Episode(1, 9, 1, state=WatchState.WATCHED)]).next_to_play({}, now=100) is None
+
+
+def _catch_up_list():
+    return EpisodeList(
+        [
+            Episode(1, 9, 1, state=WatchState.WATCHED),
+            Episode(2, 9, 2),
+            Episode(3, 9, 3),
+            Episode(4, 9, 4, state=WatchState.WATCHED),
+            Episode(5, 9, 5),
+            Episode(6, 9, 1, kind=EpisodeKind.SPECIAL),
+        ]
+    )
+
+
+def test_catch_up_finds_the_lowest_unwatched_episode_before_the_clicked_one():
+    assert _catch_up_list().catch_up_target(5, {}, now=100).id == 2
+    assert _catch_up_list().catch_up_target(3, {}, now=100).id == 2
+
+
+def test_catch_up_plays_the_clicked_episode_when_it_is_the_first_unwatched():
+    assert _catch_up_list().catch_up_target(2, {}, now=100) is None
+
+
+def test_catch_up_leaves_watched_episodes_and_specials_alone():
+    assert _catch_up_list().catch_up_target(4, {}, now=100) is None  # a rewatch
+    assert _catch_up_list().catch_up_target(6, {}, now=100) is None
+
+
+def test_catch_up_skips_earlier_episodes_that_have_not_aired():
+    assert _catch_up_list().catch_up_target(5, {2: 150, 3: 50}, now=100).id == 3
+    assert _catch_up_list().catch_up_target(5, {2: 150, 3: 150}, now=100) is None

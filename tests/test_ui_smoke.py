@@ -26,6 +26,8 @@ from anical.db.settings import (
     MAL_MODE,
     MAL_USERNAME,
     PLAYBACK_AUTO_MARK,
+    PLAYBACK_BACKEND,
+    PLAYBACK_CATCH_UP,
     PLAYBACK_EXECUTABLE,
     PLAYBACK_PLAYER,
     SettingsRepository,
@@ -759,6 +761,96 @@ def test_week_card_plays_on_double_click_and_has_a_context_menu(window, repo, mo
 
     monkeypatch.setattr(gestures, "current", lambda: gestures.System.MACOS)
     assert gestures.context_click_hint() == "Control-click"
+
+
+def _unwatched_third_episode(window, repo):
+    """A show with episode 1 watched and episode 3 aired, on the calendar."""
+    import time
+
+    anime_id = repo.create_anime(AnimeDraft(title="Catch Up", airing_status=AiringStatus.AIRING, total_episodes=3))
+    one, two, three = repo.episodes(anime_id).episodes
+    repo.set_watch_state([one.id], WatchState.WATCHED)
+    window.schedule.set_user_airings(anime_id, [(3, int(time.time()) - 3600)])
+    window.library_changed()
+    drain()
+    return anime_id, two, three
+
+
+def _calendar_rows_for(window, title):
+    window.calendar_view.show_mode("unwatched")
+    drain()
+    rows = [w for w in all_widgets(window.calendar_view) if isinstance(w, Adw.ActionRow)]
+    return [r for r in rows if r.get_title().startswith(title)]
+
+
+def test_calendar_double_click_catches_up_and_says_so(window, repo, monkeypatch):
+    anime_id, two, three = _unwatched_third_episode(window, repo)
+    played, toasts = [], []
+    monkeypatch.setattr(window.playback, "play", lambda episode_id: played.append(episode_id))
+    monkeypatch.setattr(window, "toast", toasts.append)
+
+    window.play_from_calendar(anime_id, three.id)
+    assert played == [two.id]
+    assert toasts == ["Playing Episode 2, the first one you haven’t watched"]
+
+    window.play_from_calendar(anime_id, two.id)  # already the first unwatched: no message
+    assert played == [two.id, two.id] and len(toasts) == 1
+
+
+def test_calendar_catch_up_stays_within_the_show(window, repo, monkeypatch):
+    _unwatched_third_episode(window, repo)  # another season, with an earlier episode unwatched
+    later = repo.create_anime(AnimeDraft(title="Next Season", airing_status=AiringStatus.AIRING, total_episodes=1))
+    (episode,) = repo.episodes(later).episodes
+    played = []
+    monkeypatch.setattr(window.playback, "play", lambda episode_id: played.append(episode_id))
+    window.play_from_calendar(later, episode.id)
+    assert played == [episode.id]
+
+
+def test_calendar_catch_up_can_be_turned_off(window, repo, settings, monkeypatch):
+    anime_id, _two, three = _unwatched_third_episode(window, repo)
+    settings.set(PLAYBACK_CATCH_UP, False)
+    played, toasts = [], []
+    monkeypatch.setattr(window.playback, "play", lambda episode_id: played.append(episode_id))
+    monkeypatch.setattr(window, "toast", toasts.append)
+    window.play_from_calendar(anime_id, three.id)
+    assert played == [three.id] and toasts == []
+
+
+def test_calendar_catch_up_stays_quiet_when_playback_cannot_start(window, repo, monkeypatch):
+    anime_id, _two, three = _unwatched_third_episode(window, repo)
+    toasts = []
+    monkeypatch.setattr(window.playback, "play", lambda _episode_id: "ani-cli wasn’t found")
+    monkeypatch.setattr(window, "toast", toasts.append)
+    window.play_from_calendar(anime_id, three.id)
+    assert toasts == ["ani-cli wasn’t found"]
+
+
+def test_calendar_rows_catch_up_on_double_click_but_their_play_button_is_exact(window, repo, monkeypatch):
+    _anime_id, two, three = _unwatched_third_episode(window, repo)
+    played = []
+    monkeypatch.setattr(window.playback, "play", lambda episode_id: played.append(episode_id))
+    (row,) = _calendar_rows_for(window, "Episode 3")
+    # Newest first: the context menu's gesture, then the double-click's.
+    _context, double = [c for c in row.observe_controllers() if isinstance(c, Gtk.GestureClick)][:2]
+    double.emit("pressed", 2, 1.0, 1.0)
+    assert played == [two.id]
+
+    play = next(w for w in all_widgets(row) if isinstance(w, Gtk.Button) and w.get_tooltip_text() == "Play")
+    play.emit("clicked")
+    assert played == [two.id, three.id]
+
+
+def test_catch_up_switch_saves_and_stays_visible_for_link_or_command(controller, display, playback, repo, settings):
+    settings.set(PLAYBACK_BACKEND, "external")  # hides the groups that only apply to ani-cli
+    dialog = PreferencesDialog(controller, display, playback, repo.connection, Path("/tmp"), lambda: None)
+    page = dialog._playback_page()  # held: the rows lose their parents if the page is collected
+    switches = [w for w in all_widgets(page) if isinstance(w, Adw.SwitchRow)]
+    (switch,) = [w for w in switches if w.get_title() == "Catch Up From the Calendar"]
+    assert switch.get_active() and playback.config.catch_up
+    assert switch.get_ancestor(Adw.PreferencesGroup.__gtype__).get_visible()
+    switch.set_active(False)
+    assert settings.get(PLAYBACK_CATCH_UP) is False and not playback.config.catch_up
 
 
 def all_widgets(widget):
