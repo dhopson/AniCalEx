@@ -35,6 +35,11 @@
   <url type="homepage">https://github.com/dhopson/AniCalEx</url>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.3" date="2026-11-03">
+      <description>
+        <p>Choose your video player: mpv, VLC or, on macOS, IINA.</p>
+      </description>
+    </release>
     <release version="0.2.2" date="2026-11-02">
       <description>
         <p>Double-clicking a later episode in the calendar now plays the first one you haven't watched in that season, which you can turn off in Preferences. The Playing card also has a Large size, centered at up to 75% of the window.</p>
