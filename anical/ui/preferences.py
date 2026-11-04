@@ -31,11 +31,11 @@ from anical.domain.playback import MODES, QUALITIES
 from anical.platform import System, current
 from anical.platform.timezone import available_timezones, system_timezone_name
 from anical.sync.mal_sync import ACCOUNT, USERNAME
+from anical.ui.client_id import MAL_API_CONFIG_URL, open_registration_page
 from anical.ui.display import PLAYING_SIZES, DisplaySettings
 from anical.ui.playback_controller import BACKENDS, PlaybackController, RequiredProgram
 from anical.ui.sync_controller import SyncController
 
-MAL_API_CONFIG_URL = "https://myanimelist.net/apiconfig"
 _QUALITY_LABELS = {"best": "Best Available", "worst": "Lowest"}
 _INSTALL_HINTS = {
     System.LINUX: {
@@ -398,7 +398,13 @@ class PreferencesDialog(Adw.PreferencesDialog):
             description="AniCal only reads your list. It never changes anything on MyAnimeList.",
         )
         if config.mode == ACCOUNT:
-            row = Adw.ActionRow(title=f"Logged in as {config.username}", use_markup=False)
+            expired = self._controller.login_expired
+            title = f"Login expired for {config.username}" if expired else f"Logged in as {config.username}"
+            row = Adw.ActionRow(title=title, use_markup=False)
+            if expired:
+                login = Gtk.Button(label="Log In", valign=Gtk.Align.CENTER, css_classes=["suggested-action"])
+                login.connect("clicked", self._on_login)
+                row.add_suffix(login)
             logout = Gtk.Button(label="Log Out", valign=Gtk.Align.CENTER)
             logout.connect("clicked", self._on_logout)
             row.add_suffix(logout)
@@ -419,9 +425,7 @@ class PreferencesDialog(Adw.PreferencesDialog):
             )
             needed.add_prefix(Gtk.Image(icon_name="dialog-information-symbolic"))
             register = Gtk.Button(label="Register…", valign=Gtk.Align.CENTER)
-            register.connect(
-                "clicked", lambda *_: Gtk.UriLauncher.new(MAL_API_CONFIG_URL).launch(self.get_root(), None, None)
-            )
+            register.connect("clicked", lambda *_: open_registration_page(self))
             needed.add_suffix(register)
             group.add(needed)
 

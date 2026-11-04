@@ -18,6 +18,7 @@ Adw.init()
 
 from helpers import FakeHttp, MemoryTokenStore, fixture_json, json_response
 
+from anical.auth.mal_oauth import OAuthError, Token
 from anical.db.playback import PlaybackRepository
 from anical.db.schedule import ScheduleRepository
 from anical.db.settings import (
@@ -222,6 +223,191 @@ def test_offline_sync_keeps_data_and_shows_banner(window, controller, settings, 
     assert window._banner.get_revealed()
     assert settings.last_refresh_run() is None  # failed runs don't count
     assert [s.title for s in repo.list_summaries()] == ["Kept"]
+
+
+def use_expired_account(settings):
+    settings.set(MAL_CLIENT_ID, "cid")
+    settings.set(MAL_MODE, "account")
+    settings.set(MAL_USERNAME, "example_user")
+
+
+def test_expired_login_asks_with_a_popup_the_size_of_the_wizard(window, controller, settings):
+    from anical.ui.setup_wizard import WIZARD_HEIGHT, WIZARD_WIDTH
+
+    use_expired_account(settings)  # MemoryTokenStore starts empty, so there's no token
+    controller.sync()
+    wait_until(lambda: not controller.busy)
+    drain()
+    dialog = window.get_visible_dialog()
+    assert dialog is window._login_dialog and dialog is not None
+    assert (dialog.get_content_width(), dialog.get_content_height()) == (WIZARD_WIDTH, WIZARD_HEIGHT)
+    assert not window._banner.get_revealed()  # the popup replaces the banner
+    assert controller.login_expired and controller.error is None
+    assert settings.last_refresh_run() is None  # still not a successful refresh
+    dialog.force_close()
+    drain()
+
+
+def test_not_now_leaves_a_banner_and_doesnt_ask_again(window, controller, settings):
+    use_expired_account(settings)
+    controller.sync()
+    wait_until(lambda: not controller.busy)
+    drain()
+    window._login_dialog.force_close()
+    drain()
+    assert window._login_dialog is None
+    assert window._banner.get_revealed() and "expired" in window._banner.get_title()
+    assert window._banner.get_button_label() == "Log In…"
+
+    controller.sync()
+    wait_until(lambda: not controller.busy)
+    drain()
+    assert window._login_dialog is None  # the next refresh stays quiet
+
+    window._on_banner_button()  # but the banner's button asks again
+    assert window._login_dialog is not None
+    window._login_dialog.force_close()
+    drain()
+
+
+def test_working_login_closes_the_popup_and_clears_the_reminder(window, controller, settings, http, clock):
+    use_expired_account(settings)
+    controller.sync()
+    wait_until(lambda: not controller.busy)
+    drain()
+    assert window._login_dialog is not None
+
+    controller._service._tokens.save(Token("access", "refresh", clock() + 99999))
+    http.replies.append(json_response({"data": [], "paging": {}}))
+    controller.sync()
+    wait_until(lambda: not controller.busy)
+    drain()
+    assert not controller.login_expired
+    assert window._login_dialog is None and not window._banner.get_revealed()
+
+
+def login_dialog(controller):
+    from anical.ui.login_expired import LoginExpiredDialog
+
+    return LoginExpiredDialog(controller)
+
+
+def test_login_popup_shows_what_it_will_log_in_with(controller, settings):
+    use_expired_account(settings)
+    dialog = login_dialog(controller)
+    assert dialog._client_entry.get_text() == "cid"
+    assert not dialog._register.get_visible()
+    assert dialog._log_in.get_sensitive()
+    account = dialog._client_entry.get_parent().get_row_at_index(2)
+    assert (account.get_title(), account.get_subtitle()) == ("Account", "example_user")
+    dialog.force_close()
+
+
+def test_login_popup_collects_a_missing_client_id(controller, settings, monkeypatch):
+    dialog = login_dialog(controller)  # a library with nothing set up, as in the self-test
+    assert not dialog._log_in.get_sensitive() and dialog._register.get_visible()
+
+    dialog._client_entry.set_text("  " + "a" * 32 + "  ")
+    assert dialog._log_in.get_sensitive() and not dialog._register.get_visible()
+    assert not dialog._status.get_visible()  # it looks right, so no warning
+
+    started = []
+
+    def refuse(on_finished):
+        started.append(controller.config.client_id)
+        raise OAuthError("port busy")
+
+    monkeypatch.setattr(controller, "begin_login", refuse)
+    dialog._on_log_in()
+    assert started == ["a" * 32]  # saved before the login starts
+    assert dialog._status.get_label() == "port busy" and dialog._log_in.get_sensitive()
+    dialog.force_close()
+
+
+def test_login_popup_only_focuses_the_client_id_when_it_needs_one(window, controller, settings):
+    window.show_login_expired()
+    drain()
+    dialog = window._login_dialog
+    assert dialog.get_focus() is dialog._client_entry
+    dialog.force_close()
+    drain()
+
+    use_expired_account(settings)
+    window.show_login_expired()
+    drain()
+    dialog = window._login_dialog
+    assert dialog.get_focus() is dialog._log_in  # a filled-in field opens selected, one key from being replaced
+    dialog.force_close()
+    drain()
+
+
+def test_login_popup_warns_about_an_unusual_client_id(controller, settings):
+    dialog = login_dialog(controller)
+    dialog._client_entry.set_text("my password")
+    assert dialog._status.get_visible() and "32 letters" in dialog._status.get_label()
+    dialog._client_entry.set_text("")
+    assert not dialog._status.get_visible() and not dialog._log_in.get_sensitive()
+    dialog.force_close()
+
+
+def test_saving_a_client_id_doesnt_close_the_popup(window, controller):
+    window.show_login_expired()
+    drain()
+    dialog = window._login_dialog
+    controller.set_client_id("a" * 32)
+    drain()
+    assert window._login_dialog is dialog and window.get_visible_dialog() is dialog
+    dialog.force_close()
+    drain()
+
+
+def test_not_now_keeps_a_typed_client_id_but_not_a_blank_one(window, controller, settings):
+    use_expired_account(settings)
+    window.show_login_expired()
+    drain()
+    window._login_dialog._client_entry.set_text("")
+    window._login_dialog.force_close()
+    drain()
+    assert controller.config.client_id == "cid"
+
+    window.show_login_expired()
+    drain()
+    window._login_dialog._client_entry.set_text("new-id")
+    window._login_dialog.force_close()
+    drain()
+    assert controller.config.client_id == "new-id"
+
+
+def test_account_without_a_client_id_asks_to_log_in(window, controller, settings, clock):
+    settings.set(MAL_MODE, "account")
+    settings.set(MAL_USERNAME, "example_user")
+    controller.sync_if_due()  # there's nothing else to refresh, but the account still needs saying
+    wait_until(lambda: not controller.busy)
+    drain()
+    assert controller.login_expired and window._login_dialog is not None
+    assert not window._login_dialog._log_in.get_sensitive()
+    window._login_dialog.force_close()
+    drain()
+
+
+def test_expired_login_is_remembered_after_a_restart(controller, settings):
+    from anical.db.settings import MAL_LOGIN_EXPIRED
+
+    use_expired_account(settings)
+    settings.set_state(MAL_LOGIN_EXPIRED, "1")
+    assert controller.login_expired
+    settings.set(MAL_MODE, "username")  # a public list has no login to expire
+    assert not controller.login_expired
+
+
+def test_preferences_offer_logging_in_again(controller, settings, display, playback, repo):
+    from anical.db.settings import MAL_LOGIN_EXPIRED
+
+    use_expired_account(settings)
+    settings.set_state(MAL_LOGIN_EXPIRED, "1")
+    dialog = PreferencesDialog(controller, display, playback, repo.connection, Path("/nonexistent"), lambda: None)
+    drain()
+    dialog.force_close()
 
 
 @pytest.mark.parametrize("mode", [None, "username", "account"])
@@ -760,6 +946,16 @@ def test_double_click_plays_and_a_single_click_still_opens(monkeypatch):
     wait_until(lambda: opened)  # a single click opens, once the double-click time has passed
     assert played == [1]
     window.destroy()
+
+
+def test_typing_sheet_matches_its_layout():
+    from gi.repository import Gdk
+
+    from anical.ui.login_expired import TYPING
+
+    sheet = Gdk.Texture.new_from_filename(str(TYPING.path))
+    rows = -(-TYPING.frames // TYPING.columns)
+    assert (sheet.get_width(), sheet.get_height()) == (TYPING.columns * TYPING.frame_w, rows * TYPING.frame_h)
 
 
 def test_theatre_sheet_matches_its_layout():

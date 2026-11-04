@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import importlib.resources
 
-from gi.repository import Gdk, GLib, Graphene, Gtk
+from gi.repository import Gdk, Gtk
+
+from anical.ui.sprite_animation import SpriteAnimation, SpriteSheet
 
 # The animation is one sprite sheet: FRAMES frames of FRAME_W x FRAME_H, COLUMNS to a row,
 # played at FPS. Made with the local ComfyUI; see packaging/art/mascot.json.
@@ -34,66 +36,17 @@ def theatre_path():
     return importlib.resources.files("anical") / "data" / "playing" / "theatre.jpg"
 
 
-class TheatreAnimation(Gtk.Widget):
-    """The mascot in a theatre seat with popcorn, watching an old TV, looping.
-
-    The sheet is only loaded while the widget is mapped, and frames only advance then.
-    With animations turned off in the system settings, the first frame stays still."""
-
-    def __init__(self):
-        super().__init__(css_classes=["playing-scene"], overflow=Gtk.Overflow.HIDDEN, vexpand=True)
-        self.update_property([Gtk.AccessibleProperty.LABEL], ["The mascot eating popcorn in front of a TV"])
-        self._sheet: Gdk.Texture | None = None
-        self._frame = 0
-        self._start_us = 0
-        self._tick = 0
-
-    def do_measure(self, orientation: Gtk.Orientation, _for_size: int) -> tuple[int, int, int, int]:
-        # No minimum: PlayingPopup chooses the size, and the card takes the small size by default.
-        natural = SCENE_WIDTH if orientation is Gtk.Orientation.HORIZONTAL else SCENE_HEIGHT
-        return 0, natural, -1, -1
-
-    def do_map(self) -> None:
-        Gtk.Widget.do_map(self)
-        try:
-            self._sheet = Gdk.Texture.new_from_filename(str(theatre_path()))
-        except GLib.Error:
-            self._sheet = None  # a broken install: the card still says what's playing
-        self._frame = 0
-        self._start_us = 0
-        if Gtk.Settings.get_default().props.gtk_enable_animations:
-            self._tick = self.add_tick_callback(self._on_tick)
-
-    def do_unmap(self) -> None:
-        if self._tick:
-            self.remove_tick_callback(self._tick)
-            self._tick = 0
-        self._sheet = None  # about 30 MB decoded; nothing to keep while hidden
-        Gtk.Widget.do_unmap(self)
-
-    def _on_tick(self, _widget, clock: Gdk.FrameClock) -> bool:
-        now = clock.get_frame_time()
-        self._start_us = self._start_us or now
-        frame = int((now - self._start_us) * FPS / 1_000_000) % FRAMES
-        if frame != self._frame:
-            self._frame = frame
-            self.queue_draw()
-        return GLib.SOURCE_CONTINUE
-
-    def do_snapshot(self, snapshot: Gtk.Snapshot) -> None:
-        if self._sheet is None:
-            return
-        width, height = self.get_width(), self.get_height()
-        scale = max(width / FRAME_W, height / FRAME_H)  # cover the widget, like a photo
-        column, row = self._frame % COLUMNS, self._frame // COLUMNS
-        x = (width - FRAME_W * scale) / 2 - column * FRAME_W * scale
-        y = (height - FRAME_H * scale) / 2 - row * FRAME_H * scale
-        snapshot.push_clip(Graphene.Rect().init(0, 0, width, height))
-        snapshot.append_texture(
-            self._sheet,
-            Graphene.Rect().init(x, y, self._sheet.get_width() * scale, self._sheet.get_height() * scale),
-        )
-        snapshot.pop()
+# The mascot in a theatre seat with popcorn, watching an old TV.
+THEATRE = SpriteSheet(
+    theatre_path(),
+    "The mascot eating popcorn in front of a TV",
+    FRAMES,
+    COLUMNS,
+    FRAME_W,
+    FRAME_H,
+    FPS,
+    SCENE_WIDTH,
+)
 
 
 class PlayingPopup(Gtk.Widget):
@@ -126,7 +79,7 @@ class PlayingPopup(Gtk.Widget):
         caption.append(close)
 
         card = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6, css_classes=["playing-card"])
-        card.append(TheatreAnimation())
+        card.append(SpriteAnimation(THEATRE, css_classes=["playing-scene"]))
         card.append(caption)
         self._card = card
         self._revealer = Gtk.Revealer(

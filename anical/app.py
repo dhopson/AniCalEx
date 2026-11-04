@@ -183,8 +183,12 @@ class AniCalApplication(Adw.Application):
                 GLib.timeout_add(300, lambda: self._show_setup(window, int(step)) and False)
             elif os.environ.get("ANICAL_SELFTEST_DIALOG") == "preferences":  # does any dialog show?
                 GLib.timeout_add(300, lambda: self.activate_action("preferences", None) and False)
+            elif os.environ.get("ANICAL_SELFTEST_DIALOG") == "login-expired":
+                GLib.timeout_add(300, lambda: window.show_login_expired() and False)
         elif not settings.get(SETUP_SEEN) and not self._sync.config.client_id:
             GLib.idle_add(lambda: self._show_setup() and False)  # first run: after the window is up
+        elif self._sync.login_expired:  # found out last time, and today's refresh may not be due
+            GLib.idle_add(lambda: window.show_login_expired() and False)
         self._sync.connect("library-changed", lambda *_: self._notifier.check())
         self._sync.start()  # local data is already on screen; refresh in the background if due
         self._notifier.start()

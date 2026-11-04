@@ -19,7 +19,7 @@ from anical.auth.mal_oauth import (
 )
 from anical.net.http import Response
 from anical.providers.mal import MalAuthError
-from anical.sync.mal_sync import ACCOUNT, USERNAME, MalConfig, MalSyncError, MalSyncService
+from anical.sync.mal_sync import ACCOUNT, USERNAME, LoginExpired, MalConfig, MalSyncError, MalSyncService
 
 NOW = 1_790_000_000
 EMPTY_LIST = {"data": [], "paging": {}}
@@ -128,7 +128,7 @@ def test_public_username_mode_needs_no_token():
 def test_unconfigured_or_logged_out_accounts_are_explained():
     with pytest.raises(MalSyncError, match="Preferences"):
         service(FakeHttp(), MemoryTokenStore()).fetch(MalConfig("", None))
-    with pytest.raises(MalSyncError, match="Log in"):
+    with pytest.raises(LoginExpired):
         service(FakeHttp(), MemoryTokenStore()).fetch(MalConfig("cid", ACCOUNT))
 
 
@@ -148,10 +148,35 @@ def test_rejected_token_is_refreshed_once_and_retried():
     assert len(http.requests) == 3
 
 
-def test_failed_refresh_asks_user_to_log_in_again():
+@pytest.mark.parametrize("status", [400, 401])
+def test_refused_refresh_means_the_login_expired(status):
     store = MemoryTokenStore(Token("old", "r", NOW - 10))
-    with pytest.raises(MalAuthError, match="Log in again"):
-        service(FakeHttp(json_response({"error": "invalid_grant"}, 400)), store).fetch(MalConfig("cid", ACCOUNT))
+    with pytest.raises(LoginExpired):
+        service(FakeHttp(json_response({"error": "invalid_grant"}, status)), store).fetch(MalConfig("cid", ACCOUNT))
+
+
+@pytest.mark.parametrize(
+    "reply",
+    [json_response({"message": "busy"}, 500), json_response({"message": "slow down"}, 429), json_response({}, 200)],
+    ids=["server-error", "rate-limited", "garbled-token"],
+)
+def test_other_refresh_failures_dont_claim_the_login_expired(reply):
+    store = MemoryTokenStore(Token("old", "r", NOW - 10))
+    with pytest.raises(MalSyncError):
+        service(FakeHttp(reply), store).fetch(MalConfig("cid", ACCOUNT))
+
+
+def test_a_rejected_new_token_means_the_login_expired():
+    store = MemoryTokenStore(Token("stale", "r", NOW + 99999))
+    http = FakeHttp(Response(401, b"{}"), token_reply(), Response(401, b"{}"))
+    with pytest.raises(LoginExpired):
+        service(http, store).fetch(MalConfig("cid", ACCOUNT))
+
+
+def test_a_public_list_rejection_isnt_about_a_login():
+    with pytest.raises(MalAuthError) as caught:
+        service(FakeHttp(Response(401, b"{}")), MemoryTokenStore()).fetch(MalConfig("bad", USERNAME, "someone"))
+    assert not isinstance(caught.value, LoginExpired)
 
 
 def test_complete_login_stores_token_and_returns_username():

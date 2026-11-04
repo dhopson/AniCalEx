@@ -9,6 +9,7 @@ AniCal is a desktop app for tracking anime on Linux, macOS and Windows. It keeps
 ## Features
 
 - **Setup wizard.** On first launch, AniCal's mascot walks you through four short steps. You get a MyAnimeList client ID, log in or import a public list, and check for ani-cli and a video player, with the best one for your system suggested. Each program has an Install button that opens a terminal window for your system. Every step can be skipped, and Back works until you finish. Main menu → Set Up AniCal… opens it again, with what you've already set up filled in.
+- **Login reminders.** If your MyAnimeList login expires, AniCal asks you to log in again in a popup that shows the client ID and account it will use, and lets you add or correct the client ID. Your password only ever goes to MyAnimeList's own site. Choose Not Now and a banner keeps the reminder, with your library and calendar still working as usual.
 - **Local library.** You can add, edit and delete shows by hand. Episodes can be marked watched one at a time or all at once, with undo. The library can be searched, filtered and sorted. All of this works offline, with no account.
 - **MyAnimeList import.** You can log in through your browser (OAuth with PKCE), or import a public list by username (see [Connecting MyAnimeList](#connecting-myanimelist)). Imports run when the app starts if the last successful sync was more than 24 hours ago, then once a day while the app runs, and on demand with <kbd>Ctrl</kbd>+<kbd>R</kbd>.
   - Imports bring in cover art and MAL list statuses.
@@ -222,6 +223,7 @@ anical/
   ui/               window, calendar and library views, show page, dialogs, preferences, refresh controller
   data/icons/       app icon (full colour and symbolic)
   data/setup/       the setup wizard's mascot and per-system install scripts
+  data/login/       the mascot's typing animation for the login popup
   data/playing/     the Playing episode card's animation (one sprite sheet)
 packaging/
   PKGBUILD, *.desktop, *.metainfo.xml   Arch package and Linux desktop integration

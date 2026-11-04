@@ -18,6 +18,7 @@ from anical.db.settings import (
     LAST_REFRESH_ERROR,
     LAST_REFRESH_RUN,
     MAL_CLIENT_ID,
+    MAL_LOGIN_EXPIRED,
     MAL_MODE,
     MAL_USERNAME,
     SettingsRepository,
@@ -25,7 +26,7 @@ from anical.db.settings import (
 from anical.domain.refresh import refresh_due
 from anical.net.http import HttpClient, NetworkError
 from anical.sync.covers import download_covers
-from anical.sync.mal_sync import ACCOUNT, USERNAME, MalConfig, MalSyncService
+from anical.sync.mal_sync import ACCOUNT, USERNAME, LoginExpired, MalConfig, MalSyncService
 from anical.sync.schedule_sync import ScheduleFetch, fetch_schedules
 from anical.ui.tasks import run_in_thread
 
@@ -46,6 +47,7 @@ class RefreshResult:
     mal: ImportSummary | None = None
     schedule: ScheduleSummary | None = None
     errors: list[str] = field(default_factory=list)
+    login_expired: bool = False
 
 
 class SyncController(GObject.Object):
@@ -96,6 +98,11 @@ class SyncController(GObject.Object):
         return self._settings.get_state(LAST_REFRESH_ERROR)
 
     @property
+    def login_expired(self) -> bool:
+        """The account's saved login stopped working, and the user has to log in again."""
+        return self.config.mode == ACCOUNT and self._settings.get_state(MAL_LOGIN_EXPIRED) is not None
+
+    @property
     def last_run(self) -> int | None:
         return self._settings.last_refresh_run()
 
@@ -131,7 +138,8 @@ class SyncController(GObject.Object):
     def sync_if_due(self) -> None:
         if not refresh_due(self.last_run, self._clock()):
             return
-        if self.config.ready or self._schedule.targets(self._clock()):
+        config = self.config
+        if config.ready or config.mode == ACCOUNT or self._schedule.targets(self._clock()):
             self.sync()
 
     def sync(self) -> None:
@@ -153,7 +161,13 @@ class SyncController(GObject.Object):
                 lambda e: self._step_failed("MyAnimeList", e, self._refresh_schedules),
             )
         else:
+            if config.mode == ACCOUNT:  # the client ID was removed: nothing can be fetched until it's back
+                self._note_login_expired()
             self._refresh_schedules()
+
+    def _note_login_expired(self) -> None:
+        self._run.login_expired = True
+        self._settings.set_state(MAL_LOGIN_EXPIRED, "1")
 
     def _on_mal_fetched(self, result) -> None:
         try:
@@ -161,6 +175,7 @@ class SyncController(GObject.Object):
         except Exception as e:  # noqa: BLE001 - shown to the user; the import rolled back
             self._step_failed("MyAnimeList", e, self._refresh_schedules)
             return
+        self._settings.set_state(MAL_LOGIN_EXPIRED, None)
         self.emit("library-changed")
         self._refresh_schedules()
 
@@ -190,6 +205,10 @@ class SyncController(GObject.Object):
         self._finish_refresh()
 
     def _step_failed(self, source: str, error: Exception, next_step) -> None:
+        if isinstance(error, LoginExpired):  # the window asks the user to log in, rather than reporting an error
+            self._note_login_expired()
+            next_step()
+            return
         self._run.errors.append(f"{source}: {describe_error(error)}")
         if isinstance(error, NetworkError):
             self._project_estimates()  # offline: skip the remaining network steps
@@ -197,8 +216,8 @@ class SyncController(GObject.Object):
             next_step()
 
     def _finish_refresh(self) -> None:
-        if self._run.errors:
-            self._settings.set_state(LAST_REFRESH_ERROR, "; ".join(self._run.errors))
+        if self._run.errors or self._run.login_expired:
+            self._settings.set_state(LAST_REFRESH_ERROR, "; ".join(self._run.errors) or None)
         else:
             self._settings.set_state(LAST_REFRESH_RUN, str(self._clock()))
             self._settings.set_state(LAST_REFRESH_ERROR, None)
@@ -250,6 +269,7 @@ class SyncController(GObject.Object):
             self._settings.set(MAL_MODE, ACCOUNT)
             self._settings.set(MAL_USERNAME, username)
             self._settings.set_state(LAST_REFRESH_ERROR, None)
+            self._settings.set_state(MAL_LOGIN_EXPIRED, None)
             self.emit("changed")
             on_finished(None)
             self.sync()

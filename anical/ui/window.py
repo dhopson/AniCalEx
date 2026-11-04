@@ -16,6 +16,7 @@ from anical.ui.calendar_view import CalendarView
 from anical.ui.display import DisplaySettings
 from anical.ui.editor import AnimeEditorDialog
 from anical.ui.library_view import LibraryView
+from anical.ui.login_expired import LoginExpiredDialog
 from anical.ui.pick_dialog import PickDialog
 from anical.ui.playback_controller import PlaybackController, PlaybackReport
 from anical.ui.playback_dialog import PlaybackSettingsDialog
@@ -89,8 +90,10 @@ class MainWindow(Adw.ApplicationWindow):
         self._spinner = Adw.Spinner(tooltip_text="Refreshing", visible=False)
         header.pack_end(self._spinner)
 
-        self._banner = Adw.Banner(button_label="Retry")
-        self._banner.connect("button-clicked", lambda *_: sync_controller.sync())
+        self._login_dialog: LoginExpiredDialog | None = None
+        self._login_declined = False  # "Not Now": the banner reminds them until AniCal next starts
+        self._banner = Adw.Banner()
+        self._banner.connect("button-clicked", lambda *_: self._on_banner_button())
         switcher_bar = Adw.ViewSwitcherBar(stack=self._stack)
 
         main = Adw.ToolbarView(content=self._stack)
@@ -248,12 +251,42 @@ class MainWindow(Adw.ApplicationWindow):
         controller = self.sync_controller
         self._spinner.set_visible(controller.busy)
         error = controller.error
-        self._banner.set_title(f"Couldn’t refresh — {error}" if error else "")
-        self._banner.set_revealed(bool(error) and not controller.busy)
+        expired = controller.login_expired
+        self._login_declined = self._login_declined and expired
+        remind_login = expired and self._login_dialog is None
+        if remind_login:
+            self._banner.set_title("Your MyAnimeList login has expired")
+            self._banner.set_button_label("Log In…")
+        else:
+            self._banner.set_title(f"Couldn’t refresh — {error}" if error else "")
+            self._banner.set_button_label("Retry")
+        self._banner.set_revealed((remind_login or bool(error)) and not controller.busy)
+
+    def _on_banner_button(self) -> None:
+        if self.sync_controller.login_expired:
+            self.show_login_expired()
+        else:
+            self.sync_controller.sync()
 
     def _on_synced(self, _controller, result: RefreshResult) -> None:
         if message := sync_message(result):
             self.toast(message)
+        if result.login_expired and not self._login_declined:
+            self.show_login_expired()
+
+    def show_login_expired(self) -> None:
+        """Ask the user to log in again, unless they're being asked already."""
+        if self._login_dialog is not None:
+            return
+        self._login_dialog = LoginExpiredDialog(self.sync_controller)
+        self._login_dialog.connect("closed", self._on_login_dialog_closed)
+        self._login_dialog.present(self)
+        self._update_sync_state()
+
+    def _on_login_dialog_closed(self, _dialog) -> None:
+        self._login_dialog = None
+        self._login_declined = self.sync_controller.login_expired
+        self._update_sync_state()
 
     def close_page(self, page: Adw.NavigationPage) -> None:
         if self._nav.get_visible_page() is page:

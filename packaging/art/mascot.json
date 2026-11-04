@@ -64,5 +64,27 @@
       },
       "sheet": "frames resized to 480x332 (Lanczos), JPEG quality 80"
     }
+  },
+  "login": {
+    "anical/data/login/typing.jpg": {
+      "about": "The animation on the login popup: a sprite sheet of 48 frames (624x264, 8 per row), played at 16 fps. The still is a Qwen-Image-Edit-2511 edit of the base image (placed at 640 px tall, x 180, y 16 on a 1568x672 light grey canvas; background kept, no background removal), fitted to 832x352. The loop is Wan 2.2 image-to-video at 832x352, 49 frames, first-last-frame with the still as both ends; frames 0-47 are used, since frame 48 repeats frame 0.",
+      "still": {
+        "model": "qwen_image_edit_2511_fp8mixed + Qwen-Image-Edit-2511-Lightning-4steps-V1.0 (4 steps, CFG 1, shift 3.1)",
+        "prompt": "Put her in a cozy 1980s computer room, sitting on a wooden swivel chair at a wooden desk on the left, seen from a three-quarter front angle so her whole face is visible, her body turned towards the right, both red gloved hands resting on the keyboard, typing with her fingers, looking at the screen with a focused happy expression. On the desk on the right, a chunky early-1980s home computer: a wide silver-grey and black wedge-shaped keyboard unit with chunky grey keys, and a small black and silver boxy CRT monitor standing on a grey expansion box beside two grey floppy disk drives, its curved screen glowing with rows of pale green-white blocky characters, lighting her face softly. A stack of floppy disks and a coiled cable on the desk. Warm dim room, wood paneling wall behind. Keep the same mascot costume exactly: the same oversized square plush calendar-page head with red header and two silver rings, the same face with big sparkly purple eyes and pink cheeks, the same form-fitting cream felt bodysuit with red trim, red gloves and red boots, the same body shape. One mascot only, no readable text, no logos.",
+        "seed": 5
+      },
+      "animation": {
+        "model": "wan2.2_i2v_high/low_noise_14B_fp8_scaled + wan2.2_i2v_lightx2v_4steps LoRAs (4 steps, split 2, CFG 1, shift 5, euler/simple), umt5_xxl_fp8_e4m3fn_scaled, wan_2.1_vae",
+        "prompt": "The mascot sits at the desk typing quickly on the old computer keyboard: her red gloved fingers tap up and down on the keys, her hands move a little across the keyboard, her big plush head bobs gently and nods as she types. The green text on the old monitor scrolls and flickers. Static camera, the room stays the same, the desk and computer do not move.",
+        "negative": "static, frozen, blurry, low quality, jpeg artifacts, extra limbs, deformed, camera movement, zoom, background change, scene change, text, watermark",
+        "seed": 1,
+        "frames": 49,
+        "size": [
+          832,
+          352
+        ]
+      },
+      "sheet": "frames resized to 624x264 (Lanczos), JPEG quality 80"
+    }
   }
 }

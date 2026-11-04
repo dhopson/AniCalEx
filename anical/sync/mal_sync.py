@@ -16,10 +16,15 @@ from anical.providers.mal import MalAuthError, MalClient, MalListResult
 
 ACCOUNT = "account"
 USERNAME = "username"
+REFRESH_REFUSED = (400, 401)  # how MAL's token endpoint turns down a refresh token that's no longer valid
 
 
 class MalSyncError(Exception):
     """A problem the user has to fix (not configured, logged out)."""
+
+
+class LoginExpired(MalAuthError):
+    """The account's saved login no longer works, and only logging in again will fix it."""
 
 
 @dataclass(frozen=True)
@@ -59,7 +64,7 @@ class MalSyncService:
 
         token = self._tokens.load()
         if token is None:
-            raise MalSyncError("Log in to MyAnimeList in Preferences")
+            raise LoginExpired("Log in to MyAnimeList again")
         if token.expired(self._clock()):
             token = self._refresh(config, token)
         try:
@@ -67,7 +72,10 @@ class MalSyncService:
         except MalAuthError:
             # The stated expiry can be wrong; refresh once and retry.
             token = self._refresh(config, token)
-            return self._client(self._http, config.client_id, token.access_token).fetch_list("@me")
+            try:
+                return self._client(self._http, config.client_id, token.access_token).fetch_list("@me")
+            except MalAuthError as e:
+                raise LoginExpired(str(e)) from e  # even a brand new token was rejected
 
     def complete_login(self, client_id: str, code: str, verifier: str) -> str:
         """Exchange the authorization code, store the token, return the MAL user name."""
@@ -83,6 +91,10 @@ class MalSyncService:
         try:
             token = refresh(self._http, config.client_id, token, self._clock())
         except OAuthError as e:
-            raise MalAuthError("Your MyAnimeList login has expired. Log in again in Preferences.") from e
+            # Only a refusal means the login is gone. A server error or a garbled reply
+            # says nothing about it, and shouldn't send the user off to log in again.
+            if e.status in REFRESH_REFUSED:
+                raise LoginExpired("Your MyAnimeList login has expired") from e
+            raise MalSyncError("MyAnimeList couldn’t renew your login just now") from e
         self._tokens.save(token)
         return token

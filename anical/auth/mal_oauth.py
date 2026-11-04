@@ -30,7 +30,11 @@ EXPIRY_MARGIN_S = 300
 
 
 class OAuthError(Exception):
-    pass
+    """A login step failed. `status` is the HTTP status when MAL's token endpoint answered with an error."""
+
+    def __init__(self, message: str, status: int | None = None):
+        super().__init__(message)
+        self.status = status
 
 
 class LoginCancelled(OAuthError):
@@ -106,7 +110,7 @@ def _token_from(response: Response, now: int) -> Token:
         body = {}
     if response.status != 200:
         detail = body.get("hint") or body.get("message") or body.get("error") or f"HTTP {response.status}"
-        raise OAuthError(f"MyAnimeList login failed: {detail}")
+        raise OAuthError(f"MyAnimeList login failed: {detail}", status=response.status)
     try:
         return Token(
             access_token=str(body["access_token"]),

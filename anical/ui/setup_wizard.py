@@ -16,7 +16,6 @@ main menu opens it again.
 from __future__ import annotations
 
 import importlib.resources
-import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -26,13 +25,13 @@ from anical.auth.mal_oauth import REDIRECT_URI, OAuthError
 from anical.db.settings import PLAYBACK_PLAYER_CHOICE, SETUP_SEEN, SettingsRepository
 from anical.platform.terminal import TerminalError, open_install_terminal
 from anical.sync.mal_sync import ACCOUNT, USERNAME
+from anical.ui.client_id import UNUSUAL_CLIENT_ID, looks_like_client_id, open_registration_page
 from anical.ui.playback_controller import PlaybackController, RequiredProgram
 from anical.ui.sync_controller import SyncController
 
-MAL_API_CONFIG_URL = "https://myanimelist.net/apiconfig"
-CLIENT_ID = re.compile(r"[0-9a-f]{32}")  # what MAL hands out; only used for a gentle hint
 STEPS = ("welcome", "client-id", "sign-in", "playback")
 RECHECK_S = 2
+WIZARD_WIDTH, WIZARD_HEIGHT = 780, 600
 
 
 POSES = ("welcome", "client-id", "sign-in", "playback", "done")
@@ -94,7 +93,7 @@ class SetupWizard(Adw.Dialog):
         runtime_dir: Path,
         on_finished: Callable[[], None] = lambda: None,
     ):
-        super().__init__(title="Set Up AniCal", content_width=780, content_height=600)
+        super().__init__(title="Set Up AniCal", content_width=WIZARD_WIDTH, content_height=WIZARD_HEIGHT)
         self._sync = sync_controller
         self._playback = playback
         self._settings = settings
@@ -215,9 +214,7 @@ class SetupWizard(Adw.Dialog):
 
         box.append(_label("1. Open MyAnimeList's API page and choose Create ID.", "heading"))
         open_page = Gtk.Button(label="Open MyAnimeList…", halign=Gtk.Align.START, css_classes=["pill"])
-        open_page.connect(
-            "clicked", lambda *_: Gtk.UriLauncher.new(MAL_API_CONFIG_URL).launch(self.get_root(), None, None)
-        )
+        open_page.connect("clicked", lambda *_: open_registration_page(self))
         box.append(open_page)
 
         box.append(_label("2. Fill in the form. Any App Name works, but these two must be exact:", "heading"))
@@ -251,10 +248,10 @@ class SetupWizard(Adw.Dialog):
         text = self._client_entry.get_text().strip()
         if not text:
             self._client_hint.set_label("")
-        elif CLIENT_ID.fullmatch(text.lower()):
+        elif looks_like_client_id(text):
             self._client_hint.set_label("That looks like a client ID.")
         else:
-            self._client_hint.set_label("Client IDs are usually 32 letters and digits. Check you copied the Client ID.")
+            self._client_hint.set_label(UNUSUAL_CLIENT_ID)
         self._update_buttons()
 
     def _sign_in_page(self) -> Gtk.Widget:

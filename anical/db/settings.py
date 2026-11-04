@@ -37,6 +37,7 @@ LAST_REFRESH_RUN = (
     "refresh.last_run"  # epoch seconds of the last successful refresh; no automatic refresh within 24h of it
 )
 LAST_REFRESH_ERROR = "refresh.last_error"
+MAL_LOGIN_EXPIRED = "mal.login_expired"  # set while the saved MAL login is known not to work
 
 
 class SettingsRepository:

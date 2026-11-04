@@ -164,6 +164,14 @@ def run(window: Gtk.Window, paths, send) -> dict:
         sizes = {pose: Gdk.Texture.new_from_filename(str(mascot_path(pose))).get_width() for pose in POSES}
         return all(width > 0 for width in sizes.values()), f"{sizes}"
 
+    def login_art():
+        from gi.repository import Gdk
+
+        from anical.ui.login_expired import TYPING
+
+        width = Gdk.Texture.new_from_filename(str(TYPING.path)).get_width()
+        return width == TYPING.columns * TYPING.frame_w, f"sheet width {width}"
+
     def programs():
         from anical.platform.anicli import find_ani_cli, find_bash, find_player, players
 
@@ -180,6 +188,7 @@ def run(window: Gtk.Window, paths, send) -> dict:
     check("playback_helpers", True, helpers)
     check("token_store", frozen and system is not System.LINUX, token_store)
     check("setup_wizard_art", True, setup_art)
+    check("login_art", True, login_art)
     if os.environ.get("ANICAL_SELFTEST_WIZARD") or os.environ.get("ANICAL_SELFTEST_DIALOG"):
         check("dialog_shown", False, lambda: _dialog_state(window))
     check("notifications", False, notifications)
