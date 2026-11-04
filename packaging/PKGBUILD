@@ -17,6 +17,8 @@ source=()
 _appid=io.github.dhopson.AniCal
 
 build() {
+  # makepkg keeps $srcdir between runs, and package() installs every wheel it finds here.
+  rm -rf "$srcdir/dist"
   python -m build --wheel --no-isolation --outdir "$srcdir/dist" "$_root"
 }
 
