@@ -38,6 +38,9 @@ LAST_REFRESH_RUN = (
 )
 LAST_REFRESH_ERROR = "refresh.last_error"
 MAL_LOGIN_EXPIRED = "mal.login_expired"  # set while the saved MAL login is known not to work
+MAL_RENEWAL_PROBLEM = (
+    "mal.last_renewal_problem"  # MAL's reply the last time renewing the login failed; kept for diagnosis
+)
 
 
 class SettingsRepository:

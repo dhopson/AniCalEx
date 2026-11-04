@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 from anical.auth.mal_oauth import OAuthError, Token, TokenStore, exchange_code, refresh
 from anical.db.repository import Clock, system_clock
-from anical.net.http import HttpClient
+from anical.net.http import HttpClient, NetworkError
 from anical.providers.mal import MalAuthError, MalClient, MalListResult
 
 ACCOUNT = "account"
@@ -41,6 +41,14 @@ class MalConfig:
 ClientFactory = Callable[..., MalClient]
 
 
+def _describe_renewal_failure(error: OAuthError, token: Token, now: int) -> str:
+    """For working out later why a login stopped renewing. Holds MAL's reply and the
+    login's age, and never the tokens."""
+    reply = " ".join(str(part) for part in (error.status, error.code) if part) or "no status"
+    age = f"{(now - token.issued_at) / 86400:.1f} days old" if token.issued_at else "age unknown"
+    return f"{reply}: {str(error)[:200]} (login {age})"
+
+
 class MalSyncService:
     """Fetches a MyAnimeList list, by public username or for the logged-in account, refreshing the login as needed."""
 
@@ -55,6 +63,13 @@ class MalSyncService:
         self._tokens = token_store
         self._clock = clock
         self._client = client_factory
+        self._renewal_problem: str | None = None
+
+    def take_renewal_problem(self) -> str | None:
+        """Why the last fetch couldn't renew the login, if it couldn't, and forgets it.
+        Call once that fetch has finished: it's written on the worker thread."""
+        problem, self._renewal_problem = self._renewal_problem, None
+        return problem
 
     def fetch(self, config: MalConfig) -> MalListResult:
         if not config.ready:
@@ -67,6 +82,8 @@ class MalSyncService:
             raise LoginExpired("Log in to MyAnimeList again")
         if token.expired(self._clock()):
             token = self._refresh(config, token)
+        elif token.renewal_due(self._clock()):
+            token = self._renew_early(config, token)
         try:
             return self._client(self._http, config.client_id, token.access_token).fetch_list("@me")
         except MalAuthError:
@@ -87,14 +104,24 @@ class MalSyncService:
     def logout(self) -> None:
         self._tokens.clear()
 
-    def _refresh(self, config: MalConfig, token: Token) -> Token:
+    def _renew_early(self, config: MalConfig, token: Token) -> Token:
+        """Renew a login that still works. If that fails, carry on with it and try again next
+        time: the user is only asked to log in once it has really stopped working."""
         try:
-            token = refresh(self._http, config.client_id, token, self._clock())
+            return self._refresh(config, token)
+        except (LoginExpired, MalSyncError, NetworkError):
+            return token
+
+    def _refresh(self, config: MalConfig, token: Token) -> Token:
+        now = self._clock()
+        try:
+            renewed = refresh(self._http, config.client_id, token, now)
         except OAuthError as e:
+            self._renewal_problem = _describe_renewal_failure(e, token, now)
             # Only a refusal means the login is gone. A server error or a garbled reply
             # says nothing about it, and shouldn't send the user off to log in again.
             if e.status in REFRESH_REFUSED:
                 raise LoginExpired("Your MyAnimeList login has expired") from e
             raise MalSyncError("MyAnimeList couldn’t renew your login just now") from e
-        self._tokens.save(token)
-        return token
+        self._tokens.save(renewed)
+        return renewed

@@ -20,6 +20,7 @@ from anical.db.settings import (
     MAL_CLIENT_ID,
     MAL_LOGIN_EXPIRED,
     MAL_MODE,
+    MAL_RENEWAL_PROBLEM,
     MAL_USERNAME,
     SettingsRepository,
 )
@@ -158,7 +159,7 @@ class SyncController(GObject.Object):
             run_in_thread(
                 lambda: self._service.fetch(config),
                 self._on_mal_fetched,
-                lambda e: self._step_failed("MyAnimeList", e, self._refresh_schedules),
+                self._on_mal_fetch_failed,
             )
         else:
             if config.mode == ACCOUNT:  # the client ID was removed: nothing can be fetched until it's back
@@ -169,7 +170,16 @@ class SyncController(GObject.Object):
         self._run.login_expired = True
         self._settings.set_state(MAL_LOGIN_EXPIRED, "1")
 
+    def _note_renewal_problem(self) -> None:
+        if problem := self._service.take_renewal_problem():
+            self._settings.set_state(MAL_RENEWAL_PROBLEM, problem)
+
+    def _on_mal_fetch_failed(self, error: Exception) -> None:
+        self._note_renewal_problem()
+        self._step_failed("MyAnimeList", error, self._refresh_schedules)
+
     def _on_mal_fetched(self, result) -> None:
+        self._note_renewal_problem()
         try:
             self._run.mal = apply_mal_list(self._repo.connection, result, self._clock())
         except Exception as e:  # noqa: BLE001 - shown to the user; the import rolled back

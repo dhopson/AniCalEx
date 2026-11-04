@@ -18,7 +18,7 @@ Adw.init()
 
 from helpers import FakeHttp, MemoryTokenStore, fixture_json, json_response
 
-from anical.auth.mal_oauth import OAuthError, Token
+from anical.auth.mal_oauth import RENEW_AFTER_S, OAuthError, Token
 from anical.db.playback import PlaybackRepository
 from anical.db.schedule import ScheduleRepository
 from anical.db.settings import (
@@ -27,6 +27,7 @@ from anical.db.settings import (
     DISPLAY_TIMEZONE,
     MAL_CLIENT_ID,
     MAL_MODE,
+    MAL_RENEWAL_PROBLEM,
     MAL_USERNAME,
     PLAYBACK_AUTO_MARK,
     PLAYBACK_BACKEND,
@@ -277,7 +278,7 @@ def test_working_login_closes_the_popup_and_clears_the_reminder(window, controll
     drain()
     assert window._login_dialog is not None
 
-    controller._service._tokens.save(Token("access", "refresh", clock() + 99999))
+    controller._service._tokens.save(Token("access", "refresh", clock() + 99999, clock()))
     http.replies.append(json_response({"data": [], "paging": {}}))
     controller.sync()
     wait_until(lambda: not controller.busy)
@@ -386,6 +387,32 @@ def test_account_without_a_client_id_asks_to_log_in(window, controller, settings
     drain()
     assert controller.login_expired and window._login_dialog is not None
     assert not window._login_dialog._log_in.get_sensitive()
+    window._login_dialog.force_close()
+    drain()
+
+
+def test_failed_renewal_is_recorded_and_doesnt_interrupt(window, controller, settings, http, clock):
+    use_expired_account(settings)
+    day_old = Token("access", "refresh", clock() + 99999, clock() - RENEW_AFTER_S)
+    controller._service._tokens.save(day_old)
+    http.replies += [json_response({"error": "invalid_grant"}, 400), json_response({"data": [], "paging": {}})]
+    controller.sync()
+    wait_until(lambda: not controller.busy)
+    drain()
+    assert "400 invalid_grant" in settings.get_state(MAL_RENEWAL_PROBLEM)
+    assert not controller.login_expired and window._login_dialog is None
+    assert controller.error is None and settings.last_refresh_run() is not None
+
+
+def test_renewal_problem_is_kept_when_the_login_expires(window, controller, settings, http, clock):
+    use_expired_account(settings)
+    controller._service._tokens.save(Token("access", "refresh", clock() - 10, clock() - 99999))
+    http.replies.append(json_response({"error": "invalid_grant"}, 400))
+    controller.sync()
+    wait_until(lambda: not controller.busy)
+    drain()
+    assert "400 invalid_grant" in settings.get_state(MAL_RENEWAL_PROBLEM)
+    assert window._login_dialog is not None
     window._login_dialog.force_close()
     drain()
 

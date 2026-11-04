@@ -27,14 +27,20 @@ REDIRECT_URI = f"http://localhost:{REDIRECT_PORT}/callback"
 TOKEN_LABEL = "AniCal MyAnimeList login"  # noqa: S105 - a label, not a password
 # Refresh a little before the stated expiry to avoid racing it.
 EXPIRY_MARGIN_S = 300
+# Renew long before that. MAL gives the refresh token only about a month, and the access token
+# about as long, so waiting for the access token to expire can leave a dead refresh token.
+# Renewing starts the month again, so this is what lets AniCal stay closed for weeks.
+RENEW_AFTER_S = 24 * 60 * 60
 
 
 class OAuthError(Exception):
-    """A login step failed. `status` is the HTTP status when MAL's token endpoint answered with an error."""
+    """A login step failed. `status` and `code` are the HTTP status and OAuth error code
+    when MAL's token endpoint answered with an error."""
 
-    def __init__(self, message: str, status: int | None = None):
+    def __init__(self, message: str, status: int | None = None, code: str | None = None):
         super().__init__(message)
         self.status = status
+        self.code = code
 
 
 class LoginCancelled(OAuthError):
@@ -43,14 +49,19 @@ class LoginCancelled(OAuthError):
 
 @dataclass(frozen=True)
 class Token:
-    """A MyAnimeList login: the access and refresh tokens, and when the access token expires."""
+    """A MyAnimeList login: the access and refresh tokens, when the access token expires,
+    and when they were issued (0 for a login saved before that was recorded)."""
 
     access_token: str
     refresh_token: str
     expires_at: int
+    issued_at: int = 0
 
     def expired(self, now: int) -> bool:
         return now >= self.expires_at - EXPIRY_MARGIN_S
+
+    def renewal_due(self, now: int) -> bool:
+        return now - self.issued_at >= RENEW_AFTER_S
 
     def to_json(self) -> str:
         return json.dumps(asdict(self))
@@ -58,7 +69,12 @@ class Token:
     @classmethod
     def from_json(cls, text: str) -> Token:
         data = json.loads(text)
-        return cls(str(data["access_token"]), str(data["refresh_token"]), int(data["expires_at"]))
+        return cls(
+            str(data["access_token"]),
+            str(data["refresh_token"]),
+            int(data["expires_at"]),
+            int(data.get("issued_at", 0)),
+        )
 
     @classmethod
     def from_saved(cls, text: str | None) -> Token | None:
@@ -110,12 +126,13 @@ def _token_from(response: Response, now: int) -> Token:
         body = {}
     if response.status != 200:
         detail = body.get("hint") or body.get("message") or body.get("error") or f"HTTP {response.status}"
-        raise OAuthError(f"MyAnimeList login failed: {detail}", status=response.status)
+        raise OAuthError(f"MyAnimeList login failed: {detail}", status=response.status, code=body.get("error"))
     try:
         return Token(
             access_token=str(body["access_token"]),
             refresh_token=str(body["refresh_token"]),
             expires_at=now + int(body["expires_in"]),
+            issued_at=now,
         )
     except (KeyError, TypeError, ValueError) as e:
         raise OAuthError("MyAnimeList returned an incomplete token") from e
