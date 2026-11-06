@@ -173,6 +173,7 @@ def test_player_shim_starts_mpv_with_the_progress_script(tmp_path, helpers):
     args = json.loads(log.read_text())
     assert args[0] == f"--script={helpers[1]}"
     assert args[1] == f"--script-opts=anical-out={launch.progress_path}"
+    assert args[2] == "--idle=no"  # mpv 0.42's GUI mode otherwise waits after the episode ends
     assert "--referrer=https://embed.example/" in args and args[-1] == "https://stream.example/ep.m3u8"
 
 

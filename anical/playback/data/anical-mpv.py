@@ -7,7 +7,9 @@ VLC and IINA instead. So every player goes through this one shim, which starts
 the real player in the foreground with those options translated for it:
 
 - mpv: AniCal's progress script, added as separate arguments so no path has to
-  survive ani-cli's word splitting of ANI_CLI_PLAYER_FLAGS.
+  survive ani-cli's word splitting of ANI_CLI_PLAYER_FLAGS, and --idle=no. ani-cli
+  waits for mpv to exit, but mpv 0.42 stays open after the last file when it's
+  started without a terminal ("pseudo-gui" mode, as on Windows).
 - VLC: its web interface on loopback, with a password made for this launch, is
   asked how far playback got. If VLC rejects those options (a build without
   them), it's started again without them, and AniCal asks the user afterwards.
@@ -244,7 +246,8 @@ def run_mpv(player, args, flags, out):
     script = os.environ.get("ANICAL_PROGRESS_SCRIPT")
     if script and out:
         argv += [f"--script={script}", f"--script-opts=anical-out={out}"]
-    return subprocess.call(argv + flags + args)
+    # Before the user's flags, so they can still choose otherwise.
+    return subprocess.call([*argv, "--idle=no", *flags, *args])
 
 
 RUNNERS = {"mpv": run_mpv, "vlc": run_vlc, "iina": run_iina}
