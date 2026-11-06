@@ -18,6 +18,7 @@ from anical.net.http import HttpClient, Response
 from anical.net.throttle import Throttle, backoff_seconds
 
 API_BASE = "https://api.myanimelist.net/v2"
+ANIME_PAGE_BASE = "https://myanimelist.net/anime"
 LIST_FIELDS = ",".join(
     (
         "list_status",
@@ -37,6 +38,12 @@ LIST_FIELDS = ",".join(
 BROADCAST_TZ = "Asia/Tokyo"
 LIST_STATUSES = ("watching", "completed", "on_hold", "dropped", "plan_to_watch")
 _MAX_PAGES = 100
+
+
+def anime_page_url(mal_id: int) -> str:
+    """The show's page on MyAnimeList's website; the ID alone is enough to find it."""
+    return f"{ANIME_PAGE_BASE}/{mal_id}/"
+
 
 _MEDIA_TYPES = {
     "tv": MediaType.TV,

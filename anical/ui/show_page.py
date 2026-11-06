@@ -21,6 +21,7 @@ from anical.domain.models import (
 from anical.domain.playback import history_for
 from anical.domain.schedule import AiringSource
 from anical.playback import read_history
+from anical.providers.mal import anime_page_url
 from anical.ui.air_dates import AirDatesDialog
 from anical.ui.cover import cover
 from anical.ui.editor import AnimeEditorDialog
@@ -30,6 +31,7 @@ if TYPE_CHECKING:
 
 # Above this many episodes, only a window around the viewer's progress is built.
 EPISODE_WINDOW = 60
+COVER_WIDTH, COVER_HEIGHT = 210, 300
 
 
 _FIELD_LABELS = {
@@ -77,6 +79,18 @@ def _text_group(title: str, text: str) -> Adw.PreferencesGroup:
     group = Adw.PreferencesGroup(title=title)
     group.add(_selectable_label(text, ["body"]))
     return group
+
+
+def _mal_link(cover_widget: Gtk.Widget, mal_id: int) -> Gtk.Button:
+    """The cover as a button that opens the show on MyAnimeList, captioned to say so."""
+    url = anime_page_url(mal_id)
+    box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+    box.append(cover_widget)
+    box.append(Gtk.Label(label="Open MAL page", margin_bottom=4, css_classes=["caption", "dim-label"]))
+    button = Gtk.Button(child=box, valign=Gtk.Align.CENTER, css_classes=["flat", "cover-link"], tooltip_text=url)
+    button.update_property([Gtk.AccessibleProperty.LABEL], ["Open on MyAnimeList"])
+    button.connect("clicked", lambda *_: Gtk.UriLauncher.new(url).launch(button.get_root(), None, None))
+    return button
 
 
 class ShowPage(Adw.NavigationPage):
@@ -172,7 +186,8 @@ class ShowPage(Adw.NavigationPage):
             play.connect("clicked", lambda *_: self._window.play_episode(next_episode.id))
             titles.append(play)
         heading = Gtk.Box(spacing=18)
-        heading.append(cover(anime.cover_path, anime.title, 100, 142))
+        art = cover(anime.cover_path, anime.title, COVER_WIDTH, COVER_HEIGHT)
+        heading.append(_mal_link(art, anime.mal_id) if anime.mal_id else art)
         heading.append(titles)
         self._content.append(heading)
 

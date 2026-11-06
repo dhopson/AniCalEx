@@ -3,7 +3,7 @@ from helpers import FakeHttp, fixture_json, json_response
 
 from anical.domain.models import AiringStatus, MediaType
 from anical.net.http import NetworkError, Response
-from anical.providers.mal import API_BASE, MalAuthError, MalClient, MalError, parse_anime
+from anical.providers.mal import API_BASE, MalAuthError, MalClient, MalError, anime_page_url, parse_anime
 
 
 def client(http, token=None, sleeps=None):
@@ -119,3 +119,7 @@ def test_invalid_nodes_are_rejected(node):
 def test_non_https_pictures_are_ignored():
     anime = parse_anime({"id": 1, "title": "x", "main_picture": {"large": "http://insecure/x.jpg"}})
     assert anime.picture_url is None
+
+
+def test_anime_page_url_is_built_from_the_id():
+    assert anime_page_url(64084) == "https://myanimelist.net/anime/64084/"

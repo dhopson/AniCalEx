@@ -159,6 +159,19 @@ def test_show_page_toggles_and_marks_all(window, repo):
     assert repo.episodes(anime_id).watched_count == 0
 
 
+def test_show_page_links_to_myanimelist_only_with_an_id(window, repo, monkeypatch):
+    def link_buttons(page):
+        return [w for w in all_widgets(page) if isinstance(w, Gtk.Button) and w.has_css_class("cover-link")]
+
+    assert link_buttons(ShowPage(window, repo.create_anime(AnimeDraft(title="Manual")))) == []
+    [button] = link_buttons(ShowPage(window, repo.create_anime(AnimeDraft(title="Imported", mal_id=64084))))
+    assert "Open MAL page" in widget_texts(button)
+    opened = []
+    monkeypatch.setattr(Gtk.UriLauncher, "launch", lambda launcher, *_: opened.append(launcher.get_uri()))
+    button.emit("clicked")
+    assert opened == ["https://myanimelist.net/anime/64084/"]
+
+
 def test_editor_creates_entry_and_reports_errors(repo):
     saved = []
     dialog = AnimeEditorDialog(repo, anime=None, on_saved=saved.append)

@@ -10,6 +10,7 @@ from anical import APP_ID
 
 _CSS = """
 .cover { border-radius: 6px; }
+.cover-link { padding: 0; }
 .cover-placeholder {
   border-radius: 6px;
   background-color: color-mix(in srgb, currentColor 8%, transparent);
