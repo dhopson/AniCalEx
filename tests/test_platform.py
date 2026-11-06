@@ -1,3 +1,4 @@
+import os
 import sys
 import time
 from pathlib import Path
@@ -155,6 +156,32 @@ def test_windows_finds_scoops_ani_cli_script_and_mpv(tmp_path):
     mpv = touch(tmp_path / "scoop" / "apps" / "mpv" / "current" / "mpv.exe")
     assert find_ani_cli(None, System.WINDOWS, tmp_path, nowhere) == str(script)
     assert find_player(None, System.WINDOWS, tmp_path, nowhere) == str(mpv)
+
+
+def test_windows_finds_ani_cli_in_custom_and_global_scoop_folders(tmp_path):
+    home = tmp_path / "home"
+    custom = touch(tmp_path / "D" / "scoop" / "apps" / "ani-cli" / "current" / "ani-cli")
+    assert find_ani_cli(None, System.WINDOWS, home, nowhere, {"SCOOP": str(tmp_path / "D" / "scoop")}) == str(custom)
+    program_data = tmp_path / "ProgramData"
+    shared = touch(program_data / "scoop" / "apps" / "ani-cli" / "current" / "ani-cli")
+    assert find_ani_cli(None, System.WINDOWS, home, nowhere, {"ProgramData": str(program_data)}) == str(shared)
+    assert find_ani_cli(None, System.WINDOWS, home, nowhere, {}) is None
+
+
+def test_windows_falls_back_to_path_and_follows_scoop_shims(tmp_path):
+    home = tmp_path / "home"
+    clone = touch(tmp_path / "src" / "ani-cli" / "ani-cli")  # a git clone put on PATH
+    assert find_ani_cli(None, System.WINDOWS, home, nowhere, {"PATH": str(clone.parent)}) == str(clone)
+
+    root = tmp_path / "elsewhere" / "scoop"  # scoop moved, but its shims are on PATH
+    script = touch(root / "apps" / "ani-cli" / "current" / "ani-cli")
+    shim = touch(root / "shims" / "ani-cli.cmd")
+    env = {"PATH": os.pathsep.join([str(tmp_path / "empty"), str(shim.parent)])}
+    assert find_ani_cli(None, System.WINDOWS, home, nowhere, env) == str(script)
+    assert find_ani_cli(str(shim), System.WINDOWS, home, nowhere, {}) == str(script)  # set by hand
+
+    script.unlink()  # a shim with no script behind it can't be run by bash
+    assert find_ani_cli(None, System.WINDOWS, home, nowhere, env) is None
 
 
 def test_macos_falls_back_to_homebrew_when_path_is_bare(tmp_path, monkeypatch):

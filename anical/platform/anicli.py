@@ -5,8 +5,11 @@ manager puts them, because apps started from the Dock or the Start menu
 don't see the PATH a terminal has:
 - Linux: PATH.
 - macOS: PATH, then Homebrew (/opt/homebrew, /usr/local).
-- Windows: scoop (~\\scoop\\apps\\...\\current), then PATH. ani-cli is a shell
-  script there, run by Git for Windows' bash.exe, never System32's WSL bash.
+- Windows: scoop (~\\scoop\\apps\\...\\current, or $SCOOP, $SCOOP_GLOBAL and
+  %ProgramData%\\scoop), then PATH. ani-cli is a shell script there, run by Git
+  for Windows' bash.exe, never System32's WSL bash. bash can't run scoop's shims
+  (ani-cli.cmd, .ps1, .exe), so a shim found on PATH or set by hand is followed
+  back to the script it stands for.
 Players also come from installers: VLC.app and IINA.app on macOS, and VLC in
 Program Files on Windows.
 """
@@ -48,19 +51,51 @@ def _configured(value: str | None, which: Callable[[str], str | None]) -> str | 
     return which(value)
 
 
+def _scoop_roots(home: Path, env: Mapping[str, str]) -> list[Path]:
+    """Where scoop can live: a custom folder, a global install, or the default."""
+    roots = [Path(env[key]) for key in ("SCOOP", "SCOOP_GLOBAL") if env.get(key)]
+    roots.append(home / "scoop")
+    if program_data := env.get("ProgramData"):
+        roots.append(Path(program_data) / "scoop")
+    return roots
+
+
+def _unshim(path: Path) -> Path:
+    """The script a scoop shim (<root>\\shims\\ani-cli.cmd, .ps1, .exe) stands for, else `path`."""
+    if path.parent.name.lower() != "shims":
+        return path
+    script = path.parent.parent / "apps" / path.stem / "current" / path.stem
+    return script if script.is_file() else path
+
+
+def _windows_path_ani_cli(env: Mapping[str, str]) -> str | None:
+    """ani-cli on PATH: the script itself, as a git clone leaves it, or a scoop shim."""
+    for folder in filter(None, env.get("PATH", "").split(os.pathsep)):
+        for name in ("ani-cli", "ani-cli.cmd", "ani-cli.ps1", "ani-cli.exe"):
+            candidate = Path(folder) / name
+            if candidate.is_file():
+                script = _unshim(candidate)
+                if not script.suffix:  # bash runs the script, not a wrapper
+                    return str(script)
+    return None
+
+
 def find_ani_cli(
     configured: str | None = None,
     system: System | None = None,
     home: Path | None = None,
     which: Callable[[str], str | None] = shutil.which,
+    env: Mapping[str, str] | None = None,
 ) -> str | None:
     system = system or current()
     home = home or Path.home()
+    env = os.environ if env is None else env
     if configured and configured != "ani-cli":
-        return _configured(configured, which)
+        found = _configured(configured, which)
+        return str(_unshim(Path(found))) if found and system is System.WINDOWS else found
     if system is System.WINDOWS:
-        # scoop's shims are wrappers; bash needs the script itself.
-        return _first_file([home / "scoop" / "apps" / "ani-cli" / "current" / "ani-cli"])
+        scoop = (root / "apps" / "ani-cli" / "current" / "ani-cli" for root in _scoop_roots(home, env))
+        return _first_file(scoop) or _windows_path_ani_cli(env)
     found = which("ani-cli")
     if found or system is not System.MACOS:
         return found
